@@ -109,7 +109,7 @@ export default async function DashboardPage() {
                     {new Date(r.started_at as string).toLocaleDateString()}
                   </span>
                   <span className="text-xs text-gray-500">
-                    {Math.round((r.duration_seconds as number) / 60)}m · L{r.overall_level}
+                    {Math.round((r.duration_seconds as number) / 60)}m · L{r.overall_level as number}
                   </span>
                 </div>
               </Link>
