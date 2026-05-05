@@ -1,0 +1,15 @@
+[Unit]
+Description=SpeakRise AI Service (FastAPI)
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/speakrise/ai-service
+ExecStart=/opt/speakrise/venv/bin/uvicorn app:app --host 127.0.0.1 --port 8770
+Restart=on-failure
+RestartSec=5
+EnvironmentFile=/opt/speakrise/ai-service/.env
+
+[Install]
+WantedBy=multi-user.target
