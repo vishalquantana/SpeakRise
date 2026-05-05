@@ -93,12 +93,13 @@ async def transcribe(audio: UploadFile = File(...)):
 async def chat(request: dict):
     session_id = request.get("session_id", "default")
     user_text = request["text"]
+    system_prompt = request.get("system_prompt", SYSTEM_PROMPT)
 
     if session_id not in conversations:
         conversations[session_id] = []
 
     conversations[session_id].append({"role": "user", "content": user_text})
-    messages = [{"role": "system", "content": SYSTEM_PROMPT}] + conversations[session_id][-20:]
+    messages = [{"role": "system", "content": system_prompt}] + conversations[session_id][-20:]
 
     async with httpx.AsyncClient(timeout=60.0) as client:
         resp = await client.post(
