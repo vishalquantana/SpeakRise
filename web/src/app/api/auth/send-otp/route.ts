@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
     await db.execute({
       sql: "INSERT INTO otp_codes (id, email, code, expires_at) VALUES (?, ?, ?, ?)",
-      args: [id, email.toLowerCase(), "000000", expiresAt],
+      args: [id, email.toLowerCase(), "123456", expiresAt],
     });
     return NextResponse.json({ ok: true, testMode: true });
   }

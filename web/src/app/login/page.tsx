@@ -6,9 +6,9 @@ import { useRouter, useSearchParams } from "next/navigation";
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const testMode = searchParams.get("test") === "true";
+  const testMode = searchParams.get("test_mode") === "true";
   const [email, setEmail] = useState("");
-  const [code, setCode] = useState(testMode ? "000000" : "");
+  const [code, setCode] = useState(testMode ? "123456" : "");
   const [step, setStep] = useState<"email" | "otp">("email");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -62,7 +62,7 @@ function LoginForm() {
 
       {testMode && (
         <div className="mb-4 p-2 bg-yellow-900/30 border border-yellow-700 rounded-lg text-yellow-400 text-xs text-center">
-          Test mode — any email, code 000000
+          Test mode — any email, code 123456
         </div>
       )}
 
@@ -105,7 +105,7 @@ function LoginForm() {
           </button>
           <button
             type="button"
-            onClick={() => { setStep("email"); setCode(testMode ? "000000" : ""); setError(""); }}
+            onClick={() => { setStep("email"); setCode(testMode ? "123456" : ""); setError(""); }}
             className="w-full py-2 text-gray-400 text-sm hover:text-white transition"
           >
             Use a different email
