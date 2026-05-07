@@ -20,6 +20,7 @@ export default function ConversationUI({ sessionId, voice = "af_sarah", onSessio
   const [messages, setMessages] = useState<Message[]>([]);
   const [state, setState] = useState<"idle" | "listening" | "recording" | "processing" | "speaking">("idle");
   const [timerRunning, setTimerRunning] = useState(false);
+  const [micError, setMicError] = useState("");
   const chatRef = useRef<HTMLDivElement>(null);
 
   const streamRef = useRef<MediaStream | null>(null);
@@ -234,7 +235,23 @@ export default function ConversationUI({ sessionId, voice = "af_sarah", onSessio
   }
 
   async function startConversation() {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    setMicError("");
+
+    let stream: MediaStream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch (err: any) {
+      console.error("Mic access error:", err);
+      if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
+        setMicError("Microphone access denied. Please allow microphone access in your browser settings and try again.");
+      } else if (err.name === "NotFoundError") {
+        setMicError("No microphone found. Please connect a microphone and try again.");
+      } else {
+        setMicError(`Microphone error: ${err.message || "Unknown error"}. Check browser permissions.`);
+      }
+      return;
+    }
+
     streamRef.current = stream;
 
     const ctx = new AudioContext();
@@ -318,6 +335,12 @@ export default function ConversationUI({ sessionId, voice = "af_sarah", onSessio
           </div>
         ))}
       </div>
+
+      {micError && (
+        <div className="mx-4 mb-2 p-3 bg-red-900/30 border border-red-800 rounded-xl text-red-400 text-sm text-center">
+          {micError}
+        </div>
+      )}
 
       <div className="p-4 border-t border-gray-800 flex justify-center">
         {state === "idle" ? (
