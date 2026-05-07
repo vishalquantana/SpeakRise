@@ -13,9 +13,10 @@ interface ConversationUIProps {
   voice?: string;
   onSessionEnd: () => void;
   isOnboarding?: boolean;
+  initialPrompt?: string;
 }
 
-export default function ConversationUI({ sessionId, voice = "af_sarah", onSessionEnd, isOnboarding }: ConversationUIProps) {
+export default function ConversationUI({ sessionId, voice = "af_sarah", onSessionEnd, isOnboarding, initialPrompt }: ConversationUIProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [state, setState] = useState<"idle" | "listening" | "recording" | "processing" | "speaking">("idle");
   const [timerRunning, setTimerRunning] = useState(false);
@@ -61,6 +62,69 @@ export default function ConversationUI({ sessionId, voice = "af_sarah", onSessio
     return Math.sqrt(sum / data.length) * 100;
   }
 
+  async function playTTS(text: string): Promise<void> {
+    setState("speaking");
+    if (!playCtxRef.current) playCtxRef.current = new AudioContext();
+    if (playCtxRef.current.state === "suspended") await playCtxRef.current.resume();
+
+    const ttsRes = await fetch("/api/ai/speak", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text, voice }),
+    });
+
+    const reader = ttsRes.body!.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    const audioQueue: AudioBuffer[] = [];
+    let isPlaying = false;
+    let totalChunks = 0;
+    let playedChunks = 0;
+
+    const playNext = async (): Promise<void> => {
+      if (audioQueue.length === 0) { isPlaying = false; return; }
+      isPlaying = true;
+      const buf = audioQueue.shift()!;
+      const src = playCtxRef.current!.createBufferSource();
+      src.buffer = buf;
+      src.connect(playCtxRef.current!.destination);
+      await new Promise<void>((resolve) => {
+        src.onended = () => { playedChunks++; resolve(); };
+        src.start(0);
+      });
+      await playNext();
+    };
+
+    const processChunk = async (data: string) => {
+      if (data === "[DONE]") return;
+      try {
+        const parsed = JSON.parse(data);
+        totalChunks = parsed.total;
+        const binary = atob(parsed.audio);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+        const audioBuf = await playCtxRef.current!.decodeAudioData(bytes.buffer.slice(0));
+        audioQueue.push(audioBuf);
+        if (!isPlaying) await playNext();
+      } catch (e) { console.error("Chunk error:", e); }
+    };
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop()!;
+      for (const line of lines) {
+        if (line.startsWith("data: ")) await processChunk(line.slice(6));
+      }
+    }
+    if (buffer.startsWith("data: ")) await processChunk(buffer.slice(6));
+    while (isPlaying || playedChunks < totalChunks) {
+      await new Promise((r) => setTimeout(r, 100));
+    }
+  }
+
   const startRecording = useCallback(() => {
     if (recorderRef.current?.state === "recording") return;
     chunksRef.current = [];
@@ -102,66 +166,7 @@ export default function ConversationUI({ sessionId, voice = "af_sarah", onSessio
       const { text: reply } = await chatRes.json();
       addMessage("assistant", reply);
 
-      setState("speaking");
-      if (!playCtxRef.current) playCtxRef.current = new AudioContext();
-      if (playCtxRef.current.state === "suspended") await playCtxRef.current.resume();
-
-      const ttsRes = await fetch("/api/ai/speak", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: reply, voice }),
-      });
-
-      const reader = ttsRes.body!.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
-      const audioQueue: AudioBuffer[] = [];
-      let isPlaying = false;
-      let totalChunks = 0;
-      let playedChunks = 0;
-
-      const playNext = async (): Promise<void> => {
-        if (audioQueue.length === 0) { isPlaying = false; return; }
-        isPlaying = true;
-        const buf = audioQueue.shift()!;
-        const src = playCtxRef.current!.createBufferSource();
-        src.buffer = buf;
-        src.connect(playCtxRef.current!.destination);
-        await new Promise<void>((resolve) => {
-          src.onended = () => { playedChunks++; resolve(); };
-          src.start(0);
-        });
-        await playNext();
-      };
-
-      const processChunk = async (data: string) => {
-        if (data === "[DONE]") return;
-        try {
-          const parsed = JSON.parse(data);
-          totalChunks = parsed.total;
-          const binary = atob(parsed.audio);
-          const bytes = new Uint8Array(binary.length);
-          for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-          const audioBuf = await playCtxRef.current!.decodeAudioData(bytes.buffer.slice(0));
-          audioQueue.push(audioBuf);
-          if (!isPlaying) await playNext();
-        } catch (e) { console.error("Chunk error:", e); }
-      };
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop()!;
-        for (const line of lines) {
-          if (line.startsWith("data: ")) await processChunk(line.slice(6));
-        }
-      }
-      if (buffer.startsWith("data: ")) await processChunk(buffer.slice(6));
-      while (isPlaying || playedChunks < totalChunks) {
-        await new Promise((r) => setTimeout(r, 100));
-      }
+      await playTTS(reply);
     } catch (err) {
       console.error("Pipeline error:", err);
     }
@@ -202,6 +207,32 @@ export default function ConversationUI({ sessionId, voice = "af_sarah", onSessio
     }, 50);
   }
 
+  async function sendInitialGreeting() {
+    setState("processing");
+    processingRef.current = true;
+
+    try {
+      const prompt = initialPrompt || "Start the conversation by introducing yourself briefly and asking the user a friendly question to get them talking.";
+      const chatRes = await fetch("/api/ai/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: prompt, session_id: sessionId }),
+      });
+      const { text: reply } = await chatRes.json();
+      addMessage("assistant", reply);
+
+      await playTTS(reply);
+    } catch (err) {
+      console.error("Initial greeting error:", err);
+    }
+
+    processingRef.current = false;
+    if (activeRef.current) {
+      setState("listening");
+      startVAD();
+    }
+  }
+
   async function startConversation() {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     streamRef.current = stream;
@@ -229,8 +260,9 @@ export default function ConversationUI({ sessionId, voice = "af_sarah", onSessio
 
     activeRef.current = true;
     setTimerRunning(true);
-    setState("listening");
-    startVAD();
+
+    // AI speaks first with a greeting/question
+    await sendInitialGreeting();
   }
 
   function endConversation() {

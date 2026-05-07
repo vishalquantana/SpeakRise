@@ -67,7 +67,12 @@ export default function OnboardingPage() {
         <p className="text-xs text-gray-400">Have a short conversation so we can understand your level</p>
       </div>
       <div className="flex-1">
-        <ConversationUI sessionId={sessionId} onSessionEnd={handleSessionEnd} isOnboarding />
+        <ConversationUI
+          sessionId={sessionId}
+          onSessionEnd={handleSessionEnd}
+          isOnboarding
+          initialPrompt="You are starting a baseline English assessment. Greet the user warmly, introduce yourself as their SpeakRise conversation partner, and ask them to tell you a little about themselves. Keep it friendly and encouraging. NEVER use emojis, emoticons, or special symbols in your response."
+        />
       </div>
     </div>
   );

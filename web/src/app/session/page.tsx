@@ -57,7 +57,11 @@ export default function SessionPage() {
 
   return (
     <div className="h-screen flex flex-col">
-      <ConversationUI sessionId={sessionId} onSessionEnd={handleSessionEnd} />
+      <ConversationUI
+        sessionId={sessionId}
+        onSessionEnd={handleSessionEnd}
+        initialPrompt="You are the user's daily English conversation partner on SpeakRise. Start by greeting them and asking an interesting, open-ended question to get them talking. Pick a topic like their day, a recent experience, an opinion, or something fun. Keep it natural and conversational. NEVER use emojis, emoticons, or special symbols in your response."
+      />
     </div>
   );
 }
