@@ -4,6 +4,8 @@ import { cookies } from "next/headers";
 export interface SessionData {
   userId?: string;
   email?: string;
+  orgId?: string;
+  role?: string;
 }
 
 const sessionOptions = {
@@ -13,7 +15,7 @@ const sessionOptions = {
     secure: process.env.NODE_ENV === "production",
     httpOnly: true,
     sameSite: "lax" as const,
-    maxAge: 60 * 60 * 24 * 30, // 30 days
+    maxAge: 60 * 60 * 24 * 30,
   },
 };
 
