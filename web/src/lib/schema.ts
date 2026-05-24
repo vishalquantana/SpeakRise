@@ -68,5 +68,112 @@ export async function migrateDatabase() {
       )`,
       args: [],
     },
+    {
+      sql: `CREATE TABLE IF NOT EXISTS organizations (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        created_by TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )`,
+      args: [],
+    },
+    {
+      sql: `CREATE TABLE IF NOT EXISTS org_members (
+        id TEXT PRIMARY KEY,
+        org_id TEXT NOT NULL,
+        user_id TEXT NOT NULL,
+        role TEXT NOT NULL DEFAULT 'employee',
+        invited_at TEXT NOT NULL DEFAULT (datetime('now')),
+        joined_at TEXT,
+        invite_token TEXT,
+        UNIQUE(org_id, user_id)
+      )`,
+      args: [],
+    },
+    {
+      sql: `CREATE TABLE IF NOT EXISTS tracks (
+        id TEXT PRIMARY KEY,
+        org_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        duration_seconds INTEGER NOT NULL DEFAULT 300,
+        scenarios_json TEXT NOT NULL DEFAULT '[]',
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )`,
+      args: [],
+    },
+    {
+      sql: `CREATE TABLE IF NOT EXISTS user_tracks (
+        user_id TEXT NOT NULL,
+        track_id TEXT NOT NULL,
+        assigned_at TEXT NOT NULL DEFAULT (datetime('now')),
+        PRIMARY KEY(user_id, track_id)
+      )`,
+      args: [],
+    },
+    {
+      sql: `CREATE TABLE IF NOT EXISTS streaks (
+        user_id TEXT PRIMARY KEY,
+        current_streak INTEGER NOT NULL DEFAULT 0,
+        longest_streak INTEGER NOT NULL DEFAULT 0,
+        last_session_date TEXT
+      )`,
+      args: [],
+    },
+    {
+      sql: `CREATE TABLE IF NOT EXISTS points (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        session_id TEXT NOT NULL,
+        participation_points INTEGER NOT NULL DEFAULT 0,
+        quality_points INTEGER NOT NULL DEFAULT 0,
+        streak_bonus INTEGER NOT NULL DEFAULT 0,
+        total INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )`,
+      args: [],
+    },
+    {
+      sql: `CREATE TABLE IF NOT EXISTS badges (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        badge_type TEXT NOT NULL,
+        earned_at TEXT NOT NULL DEFAULT (datetime('now')),
+        UNIQUE(user_id, badge_type)
+      )`,
+      args: [],
+    },
+    {
+      sql: `CREATE TABLE IF NOT EXISTS work_entries (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        session_id TEXT NOT NULL,
+        summary_text TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )`,
+      args: [],
+    },
+    {
+      sql: `CREATE TABLE IF NOT EXISTS weekly_digests (
+        id TEXT PRIMARY KEY,
+        org_id TEXT NOT NULL,
+        week_start TEXT NOT NULL,
+        digest_json TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )`,
+      args: [],
+    },
   ]);
+
+  const alterStatements = [
+    "ALTER TABLE users ADD COLUMN org_id TEXT",
+    "ALTER TABLE sessions ADD COLUMN track_id TEXT",
+    "ALTER TABLE sessions ADD COLUMN target_duration_seconds INTEGER DEFAULT 300",
+  ];
+  for (const sql of alterStatements) {
+    try {
+      await db.execute({ sql, args: [] });
+    } catch {
+      // Column already exists, safe to ignore
+    }
+  }
 }
