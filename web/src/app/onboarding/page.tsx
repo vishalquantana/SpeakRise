@@ -42,29 +42,29 @@ export default function OnboardingPage() {
 
   if (!sessionId) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center px-6 text-center">
-        <h1 className="text-2xl font-bold mb-2">
-          Welcome to Speak<span className="text-indigo-500">Rise</span>
+      <div className="min-h-screen bg-[var(--background)] flex flex-col items-center justify-center px-6 text-center">
+        <h1 className="text-2xl font-bold mb-2 text-[var(--foreground)]">
+          Welcome to Speak<span className="text-[var(--accent)]">Rise</span>
         </h1>
-        <p className="text-gray-400">Preparing your baseline assessment...</p>
+        <p className="text-[var(--muted)]">Preparing your baseline assessment...</p>
       </div>
     );
   }
 
   if (assessing) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center gap-4">
-        <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
-        <p className="text-gray-400">Analyzing your speaking level...</p>
+      <div className="min-h-screen bg-[var(--background)] flex flex-col items-center justify-center gap-4">
+        <div className="w-8 h-8 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: "var(--accent)", borderTopColor: "transparent" }} />
+        <p className="text-[var(--muted)]">Analyzing your speaking level...</p>
       </div>
     );
   }
 
   return (
-    <div className="h-screen flex flex-col">
-      <div className="px-4 py-3 bg-gray-900 border-b border-gray-800">
-        <h2 className="font-semibold">Baseline Assessment</h2>
-        <p className="text-xs text-gray-400">Have a short conversation so we can understand your level</p>
+    <div className="h-screen flex flex-col bg-[var(--background)]">
+      <div className="px-4 py-3 bg-white border-b border-[var(--card-border)]">
+        <h2 className="font-semibold text-[var(--foreground)]">Baseline Assessment</h2>
+        <p className="text-xs text-[var(--muted)]">Have a short conversation so we can understand your level</p>
       </div>
       <div className="flex-1">
         <ConversationUI

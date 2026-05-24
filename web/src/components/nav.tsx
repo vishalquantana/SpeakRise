@@ -3,25 +3,33 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-const links = [
-  { href: "/dashboard", label: "Home", icon: "H" },
-  { href: "/history", label: "History", icon: "L" },
+const employeeLinks = [
+  { href: "/dashboard", label: "Home" },
+  { href: "/history", label: "History" },
 ];
 
-export default function Nav() {
+const adminLinks = [
+  { href: "/dashboard", label: "Home" },
+  { href: "/admin", label: "Admin" },
+  { href: "/history", label: "History" },
+];
+
+export default function Nav({ isAdmin = false }: { isAdmin?: boolean }) {
   const pathname = usePathname();
+  const links = isAdmin ? adminLinks : employeeLinks;
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 bg-gray-950 border-t border-gray-800 flex justify-around py-2 px-4 z-50">
+    <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-[var(--card-border)] flex justify-around py-3 px-4 z-50">
       {links.map((l) => (
         <Link
           key={l.href}
           href={l.href}
-          className={`flex flex-col items-center gap-0.5 text-xs py-1 px-3 ${
-            pathname === l.href ? "text-indigo-400" : "text-gray-500"
+          className={`flex flex-col items-center gap-0.5 text-xs py-1 px-3 transition ${
+            pathname === l.href || pathname.startsWith(l.href + "/")
+              ? "text-[var(--accent)] font-medium"
+              : "text-[var(--muted)]"
           }`}
         >
-          <span className="text-lg font-bold">{l.icon}</span>
           <span>{l.label}</span>
         </Link>
       ))}
