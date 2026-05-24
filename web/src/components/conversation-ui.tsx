@@ -14,9 +14,11 @@ interface ConversationUIProps {
   onSessionEnd: () => void;
   isOnboarding?: boolean;
   initialPrompt?: string;
+  systemPromptAddition?: string;
+  duration?: number;
 }
 
-export default function ConversationUI({ sessionId, voice = "af_sarah", onSessionEnd, isOnboarding, initialPrompt }: ConversationUIProps) {
+export default function ConversationUI({ sessionId, voice = "af_sarah", onSessionEnd, isOnboarding, initialPrompt, systemPromptAddition, duration = 300 }: ConversationUIProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [state, setState] = useState<"idle" | "listening" | "recording" | "processing" | "speaking">("idle");
   const [timerRunning, setTimerRunning] = useState(false);
@@ -320,7 +322,7 @@ export default function ConversationUI({ sessionId, voice = "af_sarah", onSessio
           {stateLabels[state].text}
         </span>
         {timerRunning && (
-          <Timer durationSeconds={300} onTimeUp={endConversation} running={timerRunning} />
+          <Timer duration={duration} running={timerRunning} onEnd={endConversation} />
         )}
       </div>
 

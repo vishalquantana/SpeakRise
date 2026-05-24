@@ -7,6 +7,8 @@ import ConversationUI from "@/components/conversation-ui";
 export default function SessionPage() {
   const router = useRouter();
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const [duration, setDuration] = useState(300);
+  const [scenario, setScenario] = useState<{ openingMessage: string; systemPromptAddition: string } | null>(null);
   const [assessing, setAssessing] = useState(false);
 
   useEffect(() => {
@@ -16,7 +18,11 @@ export default function SessionPage() {
       body: JSON.stringify({ sessionType: "daily" }),
     })
       .then((r) => r.json())
-      .then((data) => setSessionId(data.sessionId));
+      .then((data) => {
+        setSessionId(data.sessionId);
+        setDuration(data.duration || 300);
+        setScenario(data.scenario || null);
+      });
   }, []);
 
   async function handleSessionEnd() {
@@ -41,27 +47,29 @@ export default function SessionPage() {
   if (!sessionId) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <p className="text-gray-400">Preparing session...</p>
+        <p className="text-[var(--muted)]">Preparing session...</p>
       </div>
     );
   }
 
   if (assessing) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center gap-4">
-        <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
-        <p className="text-gray-400">Generating your report...</p>
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-8 h-8 border-2 border-[var(--accent)] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-[var(--muted)]">Analyzing your session...</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="h-screen flex flex-col">
-      <ConversationUI
-        sessionId={sessionId}
-        onSessionEnd={handleSessionEnd}
-        initialPrompt="You are the user's daily English conversation partner on SpeakRise. Start by greeting them and asking an interesting, open-ended question to get them talking. Pick a topic like their day, a recent experience, an opinion, or something fun. Keep it natural and conversational. NEVER use emojis, emoticons, or special symbols in your response."
-      />
-    </div>
+    <ConversationUI
+      sessionId={sessionId}
+      onSessionEnd={handleSessionEnd}
+      duration={duration}
+      initialPrompt={scenario?.openingMessage}
+      systemPromptAddition={scenario?.systemPromptAddition}
+    />
   );
 }

@@ -3,14 +3,18 @@
 import { useState, useEffect, useRef } from "react";
 
 interface TimerProps {
-  durationSeconds: number;
-  onTimeUp: () => void;
+  duration?: number; // seconds, default 300
   running: boolean;
+  onEnd: () => void;
 }
 
-export default function Timer({ durationSeconds, onTimeUp, running }: TimerProps) {
-  const [remaining, setRemaining] = useState(durationSeconds);
+export default function Timer({ duration = 300, running, onEnd }: TimerProps) {
+  const [remaining, setRemaining] = useState(duration);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    setRemaining(duration);
+  }, [duration]);
 
   useEffect(() => {
     if (!running) return;
@@ -19,7 +23,7 @@ export default function Timer({ durationSeconds, onTimeUp, running }: TimerProps
       setRemaining((prev) => {
         if (prev <= 1) {
           clearInterval(intervalRef.current!);
-          onTimeUp();
+          onEnd();
           return 0;
         }
         return prev - 1;
@@ -29,11 +33,11 @@ export default function Timer({ durationSeconds, onTimeUp, running }: TimerProps
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
-  }, [running, onTimeUp]);
+  }, [running, onEnd]);
 
   const mins = Math.floor(remaining / 60);
   const secs = remaining % 60;
-  const pct = (remaining / durationSeconds) * 100;
+  const pct = (remaining / duration) * 100;
   const isLow = remaining < 60;
 
   return (
