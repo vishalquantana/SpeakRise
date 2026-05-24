@@ -2,8 +2,10 @@ import { redirect } from "next/navigation";
 import { getSession } from "@/lib/session";
 import { db } from "@/lib/db";
 import Link from "next/link";
-import ProgressBar from "@/components/progress-bar";
 import Nav from "@/components/nav";
+import StreakBadge from "@/components/streak-badge";
+import Leaderboard from "@/components/leaderboard";
+import { getUserStats, getLeaderboard } from "@/lib/gamification";
 
 const LEVEL_NAMES = ["", "Learning", "Speaking", "Communicating", "Persuading", "Inspiring"];
 
@@ -20,10 +22,7 @@ export default async function DashboardPage() {
 
   if (!user.onboarding_complete) redirect("/onboarding");
 
-  const progressResult = await db.execute({
-    sql: "SELECT skill, score FROM progress WHERE user_id = ? ORDER BY skill",
-    args: [session.userId],
-  });
+  const stats = await getUserStats(session.userId);
 
   const todayResult = await db.execute({
     sql: `SELECT id FROM sessions WHERE user_id = ? AND session_type = 'daily'
@@ -32,93 +31,79 @@ export default async function DashboardPage() {
   });
   const completedToday = todayResult.rows.length > 0;
 
-  const recentResult = await db.execute({
-    sql: `SELECT s.id, s.started_at, s.duration_seconds, a.overall_level
-          FROM sessions s LEFT JOIN assessments a ON a.session_id = s.id
-          WHERE s.user_id = ? AND s.ended_at IS NOT NULL
-          ORDER BY s.started_at DESC LIMIT 5`,
-    args: [session.userId],
-  });
+  const leaderboard = session.orgId
+    ? await getLeaderboard(session.orgId, "week")
+    : [];
 
   const level = user.current_level as number;
 
   return (
-    <div className="min-h-screen pb-20">
+    <div className="min-h-screen pb-20 bg-[var(--background)]">
       <header className="px-6 pt-6 pb-4">
-        <h1 className="text-2xl font-bold">
-          Speak<span className="text-indigo-500">Rise</span>
+        <h1 className="text-2xl font-bold text-[var(--foreground)]">
+          Speak<span className="text-[var(--accent)]">Rise</span>
         </h1>
-        <p className="text-gray-400 text-sm mt-1">{user.email as string}</p>
+        <p className="text-[var(--muted)] text-sm mt-1">{user.email as string}</p>
       </header>
 
-      <div className="mx-6 p-5 bg-gray-900 rounded-2xl border border-gray-800">
+      <div className="mx-6 p-5 bg-white rounded-2xl border border-[var(--card-border)] shadow-sm">
         <div className="flex items-center justify-between mb-3">
           <div>
-            <p className="text-gray-400 text-xs uppercase tracking-wide">Current Level</p>
-            <p className="text-2xl font-bold mt-1">
-              L{level} — {LEVEL_NAMES[level]}
-            </p>
+            <p className="text-[var(--muted)] text-xs uppercase tracking-wide">Level {level}</p>
+            <p className="text-xl font-bold mt-1 text-[var(--foreground)]">{LEVEL_NAMES[level]}</p>
           </div>
-          <div className="w-14 h-14 rounded-full bg-indigo-600/20 flex items-center justify-center text-2xl font-bold text-indigo-400">
-            {level}
+          <div className="text-right">
+            <p className="text-2xl font-bold text-[var(--accent)]">{stats.totalPoints}</p>
+            <p className="text-xs text-[var(--muted)]">total points</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-4 mt-3 pt-3 border-t border-[var(--card-border)]">
+          <div className="flex items-center gap-1">
+            <span className="text-sm font-medium text-[var(--foreground)]">{stats.currentStreak} day streak</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <span className="text-sm font-medium text-[var(--foreground)]">{stats.longestStreak} best</span>
           </div>
         </div>
       </div>
 
       <div className="mx-6 mt-4">
         {completedToday ? (
-          <div className="p-4 bg-green-900/20 border border-green-800 rounded-xl text-center">
-            <p className="text-green-400 font-medium">Today's session complete</p>
-            <Link href="/session" className="text-sm text-indigo-400 mt-1 inline-block">
+          <div className="p-4 bg-[var(--success-light)] border border-[var(--success)] rounded-xl text-center">
+            <p className="text-[var(--success)] font-medium">Today's session complete</p>
+            <Link href="/session" className="text-sm text-[var(--accent)] mt-1 inline-block">
               Practice more
             </Link>
           </div>
         ) : (
           <Link
             href="/session"
-            className="block w-full py-4 bg-indigo-600 hover:bg-indigo-700 rounded-xl text-center font-semibold text-lg transition"
+            className="block w-full py-4 bg-[var(--accent)] hover:bg-[#B5502F] rounded-xl text-center font-semibold text-lg text-white transition shadow-sm"
           >
             Start Today's Session
           </Link>
         )}
       </div>
 
-      {progressResult.rows.length > 0 && (
+      {stats.badges.length > 0 && (
         <div className="mx-6 mt-6">
-          <h2 className="text-lg font-semibold mb-3">Skills</h2>
-          <div className="space-y-3">
-            {progressResult.rows.map((r) => (
-              <ProgressBar key={r.skill as string} label={r.skill as string} score={r.score as number} />
+          <h2 className="text-lg font-semibold mb-3 text-[var(--foreground)]">Badges</h2>
+          <div className="flex flex-wrap gap-2">
+            {stats.badges.map((b: any) => (
+              <StreakBadge key={b.badge_type} type={b.badge_type as string} />
             ))}
           </div>
         </div>
       )}
 
-      {recentResult.rows.length > 0 && (
+      {leaderboard.length > 0 && (
         <div className="mx-6 mt-6">
-          <h2 className="text-lg font-semibold mb-3">Recent Sessions</h2>
-          <div className="space-y-2">
-            {recentResult.rows.map((r) => (
-              <Link
-                key={r.id as string}
-                href={`/report/${r.id}`}
-                className="block p-3 bg-gray-900 rounded-xl border border-gray-800 hover:border-gray-700 transition"
-              >
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-300">
-                    {new Date(r.started_at as string).toLocaleDateString()}
-                  </span>
-                  <span className="text-xs text-gray-500">
-                    {Math.round((r.duration_seconds as number) / 60)}m · L{r.overall_level as number}
-                  </span>
-                </div>
-              </Link>
-            ))}
-          </div>
+          <h2 className="text-lg font-semibold mb-3 text-[var(--foreground)]">This Week's Leaderboard</h2>
+          <Leaderboard entries={leaderboard as any} currentUserId={session.userId} />
         </div>
       )}
 
-      <Nav />
+      <Nav isAdmin={session.role === "admin"} />
     </div>
   );
 }

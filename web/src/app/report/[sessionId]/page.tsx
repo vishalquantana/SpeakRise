@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import Link from "next/link";
 import ProgressBar from "@/components/progress-bar";
 import Nav from "@/components/nav";
+import ReportTTS from "./report-tts";
 
 const LEVEL_NAMES = ["", "Learning", "Speaking", "Communicating", "Persuading", "Inspiring"];
 
@@ -16,51 +17,90 @@ export default async function ReportPage({ params }: { params: Promise<{ session
     sql: "SELECT * FROM assessments WHERE session_id = ? AND user_id = ?",
     args: [sessionId, session.userId],
   });
-
   if (assessResult.rows.length === 0) redirect("/dashboard");
 
   const assessment = assessResult.rows[0];
   const feedback = JSON.parse(assessment.feedback_json as string);
   const level = assessment.overall_level as number;
 
-  const messagesResult = await db.execute({
-    sql: "SELECT role, content FROM messages WHERE session_id = ? ORDER BY created_at",
+  const pointsResult = await db.execute({
+    sql: "SELECT * FROM points WHERE session_id = ?",
     args: [sessionId],
   });
+  const points = pointsResult.rows[0] || null;
+
+  const streakResult = await db.execute({
+    sql: "SELECT current_streak FROM streaks WHERE user_id = ?",
+    args: [session.userId],
+  });
+  const streak = (streakResult.rows[0]?.current_streak as number) || 0;
+
+  // Build TTS summary
+  let ttsSummary = `You earned ${points?.total || 0} points this session. `;
+  if (streak > 1) ttsSummary += `That's a ${streak} day streak! `;
+  ttsSummary += `Your level is ${LEVEL_NAMES[level]}. `;
+  if (feedback.feedback?.went_well?.[0]) {
+    ttsSummary += `What went well: ${feedback.feedback.went_well[0]}. `;
+  }
+  if (feedback.feedback?.improve?.[0]) {
+    ttsSummary += `To improve: ${feedback.feedback.improve[0]}. `;
+  }
+  ttsSummary += "Great job today. Keep it up!";
 
   return (
-    <div className="min-h-screen pb-20">
+    <div className="min-h-screen pb-20 bg-[var(--background)]">
       <header className="px-6 pt-6 pb-4">
-        <Link href="/dashboard" className="text-gray-400 text-sm hover:text-white transition">
+        <Link href="/dashboard" className="text-[var(--muted)] text-sm hover:text-[var(--foreground)] transition">
           &larr; Back to dashboard
         </Link>
-        <h1 className="text-xl font-bold mt-2">Session Report</h1>
+        <h1 className="text-xl font-bold mt-2 text-[var(--foreground)]">Session Report</h1>
       </header>
 
-      <div className="mx-6 p-5 bg-gray-900 rounded-2xl border border-gray-800">
-        <p className="text-gray-400 text-xs uppercase tracking-wide">Your Level</p>
-        <p className="text-3xl font-bold mt-1">
+      {points && (
+        <div className="mx-6 p-5 bg-white rounded-2xl border border-[var(--card-border)] shadow-sm">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-[var(--muted)] text-xs uppercase tracking-wide">Points Earned</p>
+              <p className="text-3xl font-bold text-[var(--accent)] mt-1">+{points.total as number}</p>
+            </div>
+            <div className="text-right text-sm text-[var(--muted)]">
+              <p>Participation: +{points.participation_points as number}</p>
+              <p>Quality: +{points.quality_points as number}</p>
+              {(points.streak_bonus as number) > 0 && <p>Streak bonus: +{points.streak_bonus as number}</p>}
+            </div>
+          </div>
+          {streak > 1 && (
+            <p className="mt-3 text-sm text-[var(--gold)] font-medium">{streak} day streak!</p>
+          )}
+        </div>
+      )}
+
+      <div className="mx-6 mt-4 p-5 bg-white rounded-2xl border border-[var(--card-border)] shadow-sm">
+        <p className="text-[var(--muted)] text-xs uppercase tracking-wide">Your Level</p>
+        <p className="text-2xl font-bold mt-1 text-[var(--foreground)]">
           L{level} — {LEVEL_NAMES[level]}
         </p>
       </div>
 
+      <ReportTTS text={ttsSummary} />
+
       {feedback.feedback?.went_well?.length > 0 && (
-        <div className="mx-6 mt-4 p-4 bg-green-900/20 border border-green-800/50 rounded-xl">
-          <h2 className="text-green-400 font-semibold text-sm mb-2">What went well</h2>
+        <div className="mx-6 mt-4 p-4 bg-[var(--success-light)] border border-[var(--success)] rounded-xl">
+          <h2 className="text-[var(--success)] font-semibold text-sm mb-2">What went well</h2>
           <ul className="space-y-1">
             {feedback.feedback.went_well.map((item: string, i: number) => (
-              <li key={i} className="text-sm text-gray-300">{item}</li>
+              <li key={i} className="text-sm text-[var(--foreground)]">{item}</li>
             ))}
           </ul>
         </div>
       )}
 
       {feedback.feedback?.improve?.length > 0 && (
-        <div className="mx-6 mt-3 p-4 bg-orange-900/20 border border-orange-800/50 rounded-xl">
-          <h2 className="text-orange-400 font-semibold text-sm mb-2">Areas to improve</h2>
+        <div className="mx-6 mt-3 p-4 bg-[var(--accent-light)] border border-[var(--accent)] rounded-xl">
+          <h2 className="text-[var(--accent)] font-semibold text-sm mb-2">Areas to improve</h2>
           <ul className="space-y-1">
             {feedback.feedback.improve.map((item: string, i: number) => (
-              <li key={i} className="text-sm text-gray-300">{item}</li>
+              <li key={i} className="text-sm text-[var(--foreground)]">{item}</li>
             ))}
           </ul>
         </div>
@@ -68,7 +108,7 @@ export default async function ReportPage({ params }: { params: Promise<{ session
 
       {feedback.skills && Object.keys(feedback.skills).length > 0 && (
         <div className="mx-6 mt-6">
-          <h2 className="text-lg font-semibold mb-3">Skill Scores</h2>
+          <h2 className="text-lg font-semibold mb-3 text-[var(--foreground)]">Skill Scores</h2>
           <div className="space-y-3">
             {Object.entries(feedback.skills).map(([skill, score]) => (
               <ProgressBar key={skill} label={skill} score={score as number} />
@@ -77,50 +117,10 @@ export default async function ReportPage({ params }: { params: Promise<{ session
         </div>
       )}
 
-      {feedback.exercises?.length > 0 && (
-        <div className="mx-6 mt-6">
-          <h2 className="text-lg font-semibold mb-3">Practice Exercises</h2>
-          <div className="space-y-3">
-            {feedback.exercises.map((ex: any, i: number) => (
-              <div key={i} className="p-4 bg-gray-900 rounded-xl border border-gray-800">
-                {ex.type === "repeat_after_me" ? (
-                  <>
-                    <p className="text-xs text-indigo-400 uppercase tracking-wide mb-1">Repeat after me</p>
-                    <p className="text-white font-medium">"{ex.sentence}"</p>
-                    <p className="text-sm text-gray-400 mt-1">{ex.explanation}</p>
-                  </>
-                ) : (
-                  <>
-                    <p className="text-xs text-indigo-400 uppercase tracking-wide mb-1">Vocabulary</p>
-                    <p className="text-white font-medium">{ex.word}</p>
-                    <p className="text-sm text-gray-400">{ex.definition}</p>
-                    <p className="text-sm text-gray-500 mt-1 italic">"{ex.example}"</p>
-                  </>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      <div className="mx-6 mt-6">
-        <h2 className="text-lg font-semibold mb-3">Conversation Transcript</h2>
-        <div className="space-y-2">
-          {messagesResult.rows.map((m, i) => (
-            <div key={i} className={`text-sm p-3 rounded-xl ${
-              m.role === "user" ? "bg-indigo-900/30 text-indigo-200" : "bg-gray-900 text-gray-300"
-            }`}>
-              <span className="text-xs text-gray-500 uppercase">{m.role as string}: </span>
-              {m.content as string}
-            </div>
-          ))}
-        </div>
-      </div>
-
       <div className="mx-6 mt-6 mb-6">
         <Link
           href="/dashboard"
-          className="block w-full py-3 bg-indigo-600 hover:bg-indigo-700 rounded-xl text-center font-semibold transition"
+          className="block w-full py-3 bg-[var(--accent)] hover:bg-[#B5502F] rounded-xl text-center font-semibold text-white transition"
         >
           Back to Dashboard
         </Link>

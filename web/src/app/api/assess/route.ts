@@ -18,11 +18,11 @@ export async function POST(req: NextRequest) {
 
   const currentLevel = (userResult.rows[0]?.current_level as number) || 1;
 
-  const { assessmentId, overallLevel } = await assessSession(
+  const { assessmentId, overallLevel, points } = await assessSession(
     sessionId,
     session.userId,
     currentLevel
   );
 
-  return NextResponse.json({ assessmentId, overallLevel });
+  return NextResponse.json({ assessmentId, overallLevel, points });
 }
