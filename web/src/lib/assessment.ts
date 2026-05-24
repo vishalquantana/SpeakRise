@@ -1,5 +1,6 @@
 import { db } from "./db";
 import { v4 as uuid } from "uuid";
+import { awardPoints } from "./gamification";
 
 const AI_URL = process.env.AI_SERVICE_URL || "http://localhost:8770";
 
@@ -50,7 +51,7 @@ export async function assessSession(
   sessionId: string,
   userId: string,
   userLevel: number
-): Promise<{ assessmentId: string; overallLevel: number }> {
+): Promise<{ assessmentId: string; overallLevel: number; points: import("./gamification").PointsBreakdown }> {
   const messagesResult = await db.execute({
     sql: "SELECT role, content FROM messages WHERE session_id = ? ORDER BY created_at",
     args: [sessionId],
@@ -114,5 +115,21 @@ export async function assessSession(
     }
   }
 
-  return { assessmentId, overallLevel };
+  // Award points
+  const points = await awardPoints(userId, sessionId, feedback.skills || {});
+
+  // Extract work entry from user's early messages
+  const workMessages = await db.execute({
+    sql: "SELECT content FROM messages WHERE session_id = ? AND role = 'user' ORDER BY created_at LIMIT 3",
+    args: [sessionId],
+  });
+  if (workMessages.rows.length > 0) {
+    const summary = workMessages.rows.map(r => r.content as string).join(" ").substring(0, 500);
+    await db.execute({
+      sql: "INSERT INTO work_entries (id, user_id, session_id, summary_text) VALUES (?, ?, ?, ?)",
+      args: [uuid(), userId, sessionId, summary],
+    });
+  }
+
+  return { assessmentId, overallLevel, points };
 }
