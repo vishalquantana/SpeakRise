@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import NudgeButton from "./nudge-button";
 
 const LEVEL_NAMES = ["", "Learning", "Speaking", "Communicating", "Persuading", "Inspiring"];
 
@@ -43,7 +44,10 @@ export default function ProgressTab() {
                 <p className="text-sm font-medium text-[var(--foreground)]">{m.name || m.email}</p>
                 <p className="text-xs text-[var(--muted)]">L{m.current_level} — {LEVEL_NAMES[m.current_level]}</p>
               </div>
-              <span className="text-sm text-[var(--accent)] font-medium">{m.total_points || 0}pts</span>
+              <div className="flex items-center gap-3">
+                <span className="text-sm text-[var(--accent)] font-medium">{m.total_points || 0}pts</span>
+                <NudgeButton userId={m.id} name={m.name || m.email} />
+              </div>
             </div>
           ))}
         </div>

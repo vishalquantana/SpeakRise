@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import NudgeButton from "./nudge-button";
 
 export default function EngagementTab() {
   const [data, setData] = useState<any>(null);
@@ -33,8 +34,9 @@ export default function EngagementTab() {
           <h3 className="text-sm font-semibold text-[var(--foreground)] mb-2">Needs a nudge</h3>
           <div className="bg-white rounded-xl border border-[var(--card-border)] divide-y divide-[var(--card-border)]">
             {data.inactive.slice(0, 10).map((u: any, i: number) => (
-              <div key={i} className="px-4 py-3 text-sm text-[var(--foreground)]">
-                {u.name || u.email}
+              <div key={i} className="px-4 py-3 flex justify-between items-center text-sm text-[var(--foreground)]">
+                <span>{u.name || u.email}</span>
+                <NudgeButton userId={u.id} name={u.name || u.email} />
               </div>
             ))}
           </div>
