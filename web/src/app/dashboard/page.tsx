@@ -6,6 +6,8 @@ import Nav from "@/components/nav";
 import StreakBadge from "@/components/streak-badge";
 import Leaderboard from "@/components/leaderboard";
 import { getUserStats, getLeaderboard } from "@/lib/gamification";
+import { getRecommendedLesson } from "@/lib/lessons";
+import { getPendingNudges } from "@/lib/nudges";
 
 const LEVEL_NAMES = ["", "Learning", "Speaking", "Communicating", "Persuading", "Inspiring"];
 
@@ -37,6 +39,13 @@ export default async function DashboardPage() {
 
   const level = user.current_level as number;
 
+  const { lesson: recommended, weakestSkill } = await getRecommendedLesson(
+    session.userId,
+    level
+  );
+  const pendingNudges = await getPendingNudges(session.userId);
+  const topNudge = pendingNudges[0] || null;
+
   return (
     <div className="min-h-screen pb-20 bg-[var(--background)]">
       <header className="px-6 pt-6 pb-4">
@@ -67,6 +76,24 @@ export default async function DashboardPage() {
         </div>
       </div>
 
+      {topNudge && (
+        <div className="mx-6 mt-4 p-4 bg-[var(--accent)]/10 border border-[var(--accent)] rounded-xl">
+          <p className="text-xs uppercase tracking-wide text-[var(--accent)] font-semibold">Your coach suggests</p>
+          {topNudge.message && (
+            <p className="text-sm text-[var(--foreground)] mt-1">{topNudge.message}</p>
+          )}
+          <p className="text-sm font-medium text-[var(--foreground)] mt-1">
+            {topNudge.lessonTopic || "A focused practice lesson"}
+          </p>
+          <Link
+            href={topNudge.lessonId ? `/session?lesson=${topNudge.lessonId}` : "/session"}
+            className="mt-3 inline-block px-4 py-2 bg-[var(--accent)] text-white rounded-lg text-sm font-semibold"
+          >
+            Start this lesson
+          </Link>
+        </div>
+      )}
+
       <div className="mx-6 mt-4">
         {completedToday ? (
           <div className="p-4 bg-[var(--success-light)] border border-[var(--success)] rounded-xl text-center">
@@ -76,12 +103,27 @@ export default async function DashboardPage() {
             </Link>
           </div>
         ) : (
-          <Link
-            href="/session"
-            className="block w-full py-4 bg-[var(--accent)] hover:bg-[#B5502F] rounded-xl text-center font-semibold text-lg text-white transition shadow-sm"
-          >
-            Start Today's Session
-          </Link>
+          <div className="p-4 bg-white rounded-2xl border border-[var(--card-border)] shadow-sm">
+            <p className="text-xs uppercase tracking-wide text-[var(--muted)]">Recommended for you</p>
+            <p className="text-lg font-semibold text-[var(--foreground)] mt-1">{recommended.topic}</p>
+            {weakestSkill && (
+              <p className="text-sm text-[var(--muted)] mt-0.5">
+                Sharpen your {weakestSkill.replace("_", " ")}
+              </p>
+            )}
+            <Link
+              href={`/session?lesson=${recommended.id}`}
+              className="block w-full mt-3 py-3 bg-[var(--accent)] hover:bg-[#B5502F] rounded-xl text-center font-semibold text-white transition"
+            >
+              Start recommended session
+            </Link>
+            <Link
+              href="/session"
+              className="block w-full mt-2 py-2 text-center text-sm text-[var(--accent)]"
+            >
+              Surprise me
+            </Link>
+          </div>
         )}
       </div>
 
