@@ -12,10 +12,11 @@ export default function SessionPage() {
   const [assessing, setAssessing] = useState(false);
 
   useEffect(() => {
+    const lessonId = new URLSearchParams(window.location.search).get("lesson");
     fetch("/api/session/start", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ sessionType: "daily" }),
+      body: JSON.stringify({ sessionType: "daily", lessonId }),
     })
       .then((r) => r.json())
       .then((data) => {

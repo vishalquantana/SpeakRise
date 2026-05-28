@@ -2,7 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 import { db } from "@/lib/db";
 import { v4 as uuid } from "uuid";
-import { getTrackForUser, pickScenario } from "@/lib/tracks";
+import { getTrackForUser } from "@/lib/tracks";
+import { generateLesson, getLessonById, consumeLesson } from "@/lib/lessons";
+import { completeNudgeByLesson } from "@/lib/nudges";
 
 export async function POST(req: NextRequest) {
   const session = await getSession();
@@ -10,24 +12,21 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { sessionType } = await req.json();
+  const { sessionType, lessonId } = await req.json();
   const id = uuid();
 
-  // Get user's track and level
   const track = await getTrackForUser(session.userId);
   const userResult = await db.execute({
     sql: "SELECT current_level FROM users WHERE id = ?",
     args: [session.userId],
   });
   const userLevel = (userResult.rows[0]?.current_level as number) || 1;
-
   const duration = track?.duration || 300;
   const trackId = track?.trackId || null;
 
-  // Pick a scenario for this session
-  let scenario = null;
-  if (track) {
-    scenario = pickScenario(userLevel, track.scenarios);
+  let lesson = lessonId ? await getLessonById(lessonId, session.userId) : null;
+  if (!lesson) {
+    lesson = await generateLesson(session.userId, { userLevel, source: "auto" });
   }
 
   await db.execute({
@@ -35,12 +34,17 @@ export async function POST(req: NextRequest) {
     args: [id, session.userId, sessionType || "daily", trackId, duration],
   });
 
+  await consumeLesson(lesson.id, id);
+  if (lesson.source === "nudge") {
+    await completeNudgeByLesson(lesson.id);
+  }
+
   return NextResponse.json({
     sessionId: id,
     duration,
-    scenario: scenario ? {
-      openingMessage: scenario.openingMessage,
-      systemPromptAddition: scenario.systemPromptAddition,
-    } : null,
+    scenario: {
+      openingMessage: lesson.openingMessage,
+      systemPromptAddition: lesson.systemPromptAddition,
+    },
   });
 }
