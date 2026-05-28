@@ -1,6 +1,7 @@
 import { db } from "./db";
 import { v4 as uuid } from "uuid";
 import { awardPoints } from "./gamification";
+import { parseAssessmentResponse } from "./assessment-core";
 
 const AI_URL = process.env.AI_SERVICE_URL || "http://localhost:8770";
 
@@ -44,7 +45,15 @@ The 5 levels are:
 
 The user's current level is ${userLevel}. Be calibrated - most learners are L1-L2. Only rate L4-L5 for genuinely exceptional speakers.`;
 
-  return baseSkills + advancedSkills + levelDescriptions;
+  const workNoteInstruction = `
+Also extract a short work note from what the user said about their job. Add this top-level field to the JSON:
+"work_note": {
+  "worked_on": "<1-2 sentence summary of what they worked on>",
+  "blockers": "<any blockers or struggles they mentioned, else empty string>",
+  "highlights": "<any wins or notable progress, else empty string>",
+  "sentiment": "<positive | neutral | negative based on their tone about work>"
+}`;
+  return baseSkills + advancedSkills + workNoteInstruction + levelDescriptions;
 }
 
 export async function assessSession(
@@ -74,23 +83,9 @@ export async function assessSession(
   });
 
   const data = await res.json();
-  let feedbackJson: string;
-  let overallLevel: number;
-
-  try {
-    const parsed = JSON.parse(data.text);
-    overallLevel = parsed.overall_level;
-    feedbackJson = JSON.stringify(parsed);
-  } catch {
-    overallLevel = userLevel;
-    feedbackJson = JSON.stringify({
-      overall_level: userLevel,
-      skills: {},
-      feedback: { went_well: ["Session completed"], improve: ["Keep practicing"] },
-      exercises: [],
-      raw_response: data.text,
-    });
-  }
+  const parsed = parseAssessmentResponse(data.text, userLevel);
+  const overallLevel = parsed.overallLevel;
+  const feedbackJson = parsed.feedbackJson;
 
   const assessmentId = uuid();
   await db.execute({
@@ -103,31 +98,31 @@ export async function assessSession(
     args: [overallLevel, userId],
   });
 
-  const feedback = JSON.parse(feedbackJson);
-  if (feedback.skills) {
-    for (const [skill, score] of Object.entries(feedback.skills)) {
-      await db.execute({
-        sql: `INSERT INTO progress (id, user_id, skill, score, level, updated_at)
-              VALUES (?, ?, ?, ?, ?, datetime('now'))
-              ON CONFLICT(user_id, skill) DO UPDATE SET score = ?, level = ?, updated_at = datetime('now')`,
-        args: [uuid(), userId, skill, score as number, overallLevel, score as number, overallLevel],
-      });
-    }
+  for (const [skill, score] of Object.entries(parsed.skills)) {
+    await db.execute({
+      sql: `INSERT INTO progress (id, user_id, skill, score, level, updated_at)
+            VALUES (?, ?, ?, ?, ?, datetime('now'))
+            ON CONFLICT(user_id, skill) DO UPDATE SET score = ?, level = ?, updated_at = datetime('now')`,
+      args: [uuid(), userId, skill, score as number, overallLevel, score as number, overallLevel],
+    });
   }
 
-  // Award points
-  const points = await awardPoints(userId, sessionId, feedback.skills || {});
+  const points = await awardPoints(userId, sessionId, parsed.skills);
 
-  // Extract work entry from user's early messages
-  const workMessages = await db.execute({
-    sql: "SELECT content FROM messages WHERE session_id = ? AND role = 'user' ORDER BY created_at LIMIT 3",
-    args: [sessionId],
-  });
-  if (workMessages.rows.length > 0) {
-    const summary = workMessages.rows.map(r => r.content as string).join(" ").substring(0, 500);
+  const wn = parsed.workNote;
+  if (wn.worked_on || wn.highlights || wn.blockers) {
     await db.execute({
-      sql: "INSERT INTO work_entries (id, user_id, session_id, summary_text) VALUES (?, ?, ?, ?)",
-      args: [uuid(), userId, sessionId, summary],
+      sql: `INSERT INTO work_entries (id, user_id, session_id, summary_text, topics_json, blockers_text, sentiment)
+            VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      args: [
+        uuid(),
+        userId,
+        sessionId,
+        wn.worked_on || wn.highlights || "",
+        JSON.stringify([]),
+        wn.blockers || null,
+        wn.sentiment,
+      ],
     });
   }
 
