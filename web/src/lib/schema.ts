@@ -162,12 +162,47 @@ export async function migrateDatabase() {
       )`,
       args: [],
     },
+    {
+      sql: `CREATE TABLE IF NOT EXISTS generated_lessons (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        template_id TEXT NOT NULL,
+        level INTEGER NOT NULL,
+        target_skill TEXT,
+        topic TEXT NOT NULL,
+        opening_message TEXT NOT NULL,
+        system_prompt_addition TEXT NOT NULL,
+        source TEXT NOT NULL DEFAULT 'auto',
+        status TEXT NOT NULL DEFAULT 'suggested',
+        session_id TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )`,
+      args: [],
+    },
+    {
+      sql: `CREATE TABLE IF NOT EXISTS nudges (
+        id TEXT PRIMARY KEY,
+        org_id TEXT NOT NULL,
+        from_admin_id TEXT NOT NULL,
+        to_user_id TEXT NOT NULL,
+        lesson_id TEXT,
+        target_skill TEXT,
+        message TEXT,
+        status TEXT NOT NULL DEFAULT 'pending',
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        seen_at TEXT
+      )`,
+      args: [],
+    },
   ]);
 
   const alterStatements = [
     "ALTER TABLE users ADD COLUMN org_id TEXT",
     "ALTER TABLE sessions ADD COLUMN track_id TEXT",
     "ALTER TABLE sessions ADD COLUMN target_duration_seconds INTEGER DEFAULT 300",
+    "ALTER TABLE work_entries ADD COLUMN topics_json TEXT DEFAULT '[]'",
+    "ALTER TABLE work_entries ADD COLUMN blockers_text TEXT",
+    "ALTER TABLE work_entries ADD COLUMN sentiment TEXT DEFAULT 'neutral'",
   ];
   for (const sql of alterStatements) {
     try {
