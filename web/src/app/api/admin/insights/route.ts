@@ -1,31 +1,46 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 import { db } from "@/lib/db";
+import {
+  getEmployeeInsights,
+  getEmployeeWorkEntries,
+  getOrgInsights,
+  generateWeeklyDigest,
+} from "@/lib/insights";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const session = await getSession();
   if (!session.userId || session.role !== "admin") {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-
   const orgId = session.orgId!;
+  const employeeId = req.nextUrl.searchParams.get("employeeId");
 
-  const workResult = await db.execute({
-    sql: `SELECT w.summary_text, w.created_at, u.email, u.name
-          FROM work_entries w JOIN users u ON u.id = w.user_id
-          WHERE u.org_id = ?
-          ORDER BY w.created_at DESC LIMIT 50`,
-    args: [orgId],
-  });
+  if (employeeId) {
+    const entries = await getEmployeeWorkEntries(orgId, employeeId);
+    return NextResponse.json({ entries });
+  }
 
-  const digestResult = await db.execute({
-    sql: `SELECT digest_json, week_start FROM weekly_digests
-          WHERE org_id = ? ORDER BY created_at DESC LIMIT 1`,
+  const employees = await getEmployeeInsights(orgId);
+  const org = await getOrgInsights(orgId);
+  const digestRow = await db.execute({
+    sql: "SELECT digest_json, week_start FROM weekly_digests WHERE org_id = ? ORDER BY created_at DESC LIMIT 1",
     args: [orgId],
   });
 
   return NextResponse.json({
-    recentWork: workResult.rows,
-    latestDigest: digestResult.rows[0] || null,
+    employees,
+    orgSentiment: org.sentiment,
+    blocked: org.blocked,
+    latestDigest: digestRow.rows[0] || null,
   });
+}
+
+export async function POST() {
+  const session = await getSession();
+  if (!session.userId || session.role !== "admin") {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  const summary = await generateWeeklyDigest(session.orgId!);
+  return NextResponse.json({ summary });
 }
