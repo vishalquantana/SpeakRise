@@ -36,6 +36,9 @@ export default async function DashboardPage() {
   const leaderboard = session.orgId
     ? await getLeaderboard(session.orgId, "week")
     : [];
+  const leaderboardAllTime = session.orgId
+    ? await getLeaderboard(session.orgId, "alltime")
+    : [];
 
   const level = user.current_level as number;
 
@@ -142,6 +145,13 @@ export default async function DashboardPage() {
         <div className="mx-6 mt-6">
           <h2 className="text-lg font-semibold mb-3 text-[var(--foreground)]">This Week's Leaderboard</h2>
           <Leaderboard entries={leaderboard as any} currentUserId={session.userId} />
+        </div>
+      )}
+
+      {leaderboardAllTime.length > 0 && (
+        <div className="mx-6 mt-6">
+          <h2 className="text-lg font-semibold mb-3 text-[var(--foreground)]">All-Time Leaderboard</h2>
+          <Leaderboard entries={leaderboardAllTime as any} currentUserId={session.userId} />
         </div>
       )}
 
