@@ -22,10 +22,10 @@ export async function createNudge(opts: {
   sendEmail?: boolean;
 }): Promise<void> {
   const userRes = await db.execute({
-    sql: "SELECT email, current_level FROM users WHERE id = ?",
-    args: [opts.toUserId],
+    sql: "SELECT email, current_level FROM users WHERE id = ? AND org_id = ?",
+    args: [opts.toUserId, opts.orgId],
   });
-  if (userRes.rows.length === 0) throw new Error("User not found");
+  if (userRes.rows.length === 0) throw new Error("User not found in this organization");
   const email = userRes.rows[0].email as string;
   const level = (userRes.rows[0].current_level as number) || 1;
 

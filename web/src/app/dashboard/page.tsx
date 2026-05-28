@@ -42,10 +42,11 @@ export default async function DashboardPage() {
 
   const level = user.current_level as number;
 
-  const { lesson: recommended, weakestSkill } = await getRecommendedLesson(
-    session.userId,
-    level
-  );
+  const recommendation = completedToday
+    ? null
+    : await getRecommendedLesson(session.userId, level);
+  const recommended = recommendation?.lesson ?? null;
+  const weakestSkill = recommendation?.weakestSkill ?? null;
   const pendingNudges = await getPendingNudges(session.userId);
   const topNudge = pendingNudges[0] || null;
 
@@ -108,14 +109,14 @@ export default async function DashboardPage() {
         ) : (
           <div className="p-4 bg-white rounded-2xl border border-[var(--card-border)] shadow-sm">
             <p className="text-xs uppercase tracking-wide text-[var(--muted)]">Recommended for you</p>
-            <p className="text-lg font-semibold text-[var(--foreground)] mt-1">{recommended.topic}</p>
+            <p className="text-lg font-semibold text-[var(--foreground)] mt-1">{recommended?.topic}</p>
             {weakestSkill && (
               <p className="text-sm text-[var(--muted)] mt-0.5">
                 Sharpen your {weakestSkill.replace("_", " ")}
               </p>
             )}
             <Link
-              href={`/session?lesson=${recommended.id}`}
+              href={recommended ? `/session?lesson=${recommended.id}` : "/session"}
               className="block w-full mt-3 py-3 bg-[var(--accent)] hover:bg-[#B5502F] rounded-xl text-center font-semibold text-white transition"
             >
               Start recommended session

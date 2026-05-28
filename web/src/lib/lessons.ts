@@ -143,7 +143,7 @@ export async function getRecommendedLesson(
 ): Promise<{ lesson: GeneratedLesson; weakestSkill: string | null }> {
   const existing = await db.execute({
     sql: `SELECT * FROM generated_lessons
-          WHERE user_id = ? AND source = 'recommendation' AND status = 'suggested'
+          WHERE user_id = ? AND status = 'suggested'
           ORDER BY created_at DESC LIMIT 1`,
     args: [userId],
   });
@@ -161,7 +161,7 @@ export async function getRecommendedLesson(
         topic: r.topic as string,
         openingMessage: r.opening_message as string,
         systemPromptAddition: r.system_prompt_addition as string,
-        source: "recommendation",
+        source: r.source as "auto" | "recommendation" | "nudge",
       },
     };
   }
