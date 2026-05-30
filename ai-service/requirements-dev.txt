@@ -1,0 +1,3 @@
+# Test tooling only. The streaming unit tests import ai-service/streaming.py,
+# which is pure stdlib, so they do NOT need the runtime deps in requirements.txt.
+pytest>=8.0
