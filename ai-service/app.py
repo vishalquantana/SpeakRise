@@ -60,12 +60,16 @@ def split_sentences(text: str) -> list[str]:
     return [p.strip() for p in parts if p.strip()]
 
 
-def synthesize_sentence(text: str, voice: str, speed: float) -> bytes:
+def synthesize_sentence(text: str, voice: str, speed: float) -> bytes | None:
     """Synthesize a single sentence to WAV bytes (runs in thread pool)."""
-    samples, sample_rate = kokoro.create(text, voice=voice, speed=speed, lang="en-us")
-    buf = io.BytesIO()
-    sf.write(buf, samples, sample_rate, format="WAV")
-    return buf.getvalue()
+    try:
+        samples, sample_rate = kokoro.create(text, voice=voice, speed=speed, lang="en-us")
+        buf = io.BytesIO()
+        sf.write(buf, samples, sample_rate, format="WAV")
+        return buf.getvalue()
+    except Exception as e:
+        print(f"TTS synthesis error for '{text[:50]}...': {e}")
+        return None
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -82,7 +86,7 @@ async def transcribe(audio: UploadFile = File(...)):
         tmp.write(content)
         tmp_path = tmp.name
     try:
-        segments, info = whisper_model.transcribe(tmp_path, beam_size=5)
+        segments, info = whisper_model.transcribe(tmp_path, beam_size=5, language="en")
         text = " ".join(seg.text for seg in segments).strip()
         return {"text": text, "language": info.language}
     finally:
@@ -93,10 +97,15 @@ async def transcribe(audio: UploadFile = File(...)):
 async def chat(request: dict):
     session_id = request.get("session_id", "default")
     user_text = request["text"]
-    system_prompt = request.get("system_prompt", SYSTEM_PROMPT)
+    base_prompt = request.get("system_prompt", SYSTEM_PROMPT)
+    addition = request.get("system_prompt_addition")
+    system_prompt = base_prompt + ("\n\nToday's scenario:\n" + addition if addition else "")
+    opening = request.get("opening")
 
     if session_id not in conversations:
         conversations[session_id] = []
+        if opening:
+            conversations[session_id].append({"role": "assistant", "content": opening})
 
     conversations[session_id].append({"role": "user", "content": user_text})
     messages = [{"role": "system", "content": system_prompt}] + conversations[session_id][-20:]
@@ -153,13 +162,19 @@ async def speak_stream(request: dict):
     ]
 
     async def event_generator():
-        # Yield each sentence's audio in order as it completes
+        # Yield each sentence's audio in order, skipping failed ones
+        successful = 0
+        results = []
         for i, future in enumerate(futures):
             wav_bytes = await future
+            if wav_bytes is not None:
+                results.append((i, wav_bytes))
+        total = len(results)
+        for idx, (i, wav_bytes) in enumerate(results):
             b64 = base64.b64encode(wav_bytes).decode("ascii")
             data = json.dumps({
-                "index": i,
-                "total": len(sentences),
+                "index": idx,
+                "total": total,
                 "sentence": sentences[i],
                 "audio": b64,
             })
