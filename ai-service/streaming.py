@@ -48,3 +48,36 @@ async def stream_sentences(
     tail = buffer.strip()
     if tail:
         yield ("sentence", tail)
+
+
+async def converse_events(
+    tokens: AsyncIterator[str],
+    synth: Callable[[str], Awaitable[bytes | None]],
+) -> AsyncIterator[dict]:
+    """Turn a token stream into ordered SSE payload dicts:
+
+        {"type": "text",  "delta": ...}                         per token
+        {"type": "audio", "index": i, "sentence": s, "audio": b64}  per sentence
+        {"type": "done",  "text": full}                         once at the end
+
+    `synth` synthesizes one sentence to WAV bytes (or None on failure, in which
+    case that sentence's audio event is skipped but its text is still counted in
+    `done.text`). Audio indices stay contiguous across skipped sentences.
+    """
+    sentences: list[str] = []
+    index = 0
+    async for kind, payload in stream_sentences(tokens):
+        if kind == "text":
+            yield {"type": "text", "delta": payload}
+        else:  # "sentence"
+            sentences.append(payload)
+            wav = await synth(payload)
+            if wav is not None:
+                yield {
+                    "type": "audio",
+                    "index": index,
+                    "sentence": payload,
+                    "audio": base64.b64encode(wav).decode("ascii"),
+                }
+                index += 1
+    yield {"type": "done", "text": " ".join(sentences).strip()}

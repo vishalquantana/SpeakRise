@@ -59,3 +59,34 @@ def test_stream_sentences_multiple_sentences_in_one_token():
     out = collect(lambda: stream_sentences(_aiter(["A. B. C."])))
     sentences = [p for k, p in out if k == "sentence"]
     assert sentences == ["A.", "B.", "C."]
+
+
+import base64 as _b64
+from streaming import converse_events
+
+
+def test_converse_events_order_indices_and_done():
+    async def synth(sentence):
+        return sentence.encode()  # fake WAV bytes
+
+    out = collect(lambda: converse_events(_aiter(["One.", " Two."]), synth))
+    assert out[-1]["type"] == "done"
+    assert out[-1]["text"] == "One. Two."
+
+    audio = [e for e in out if e["type"] == "audio"]
+    assert [a["index"] for a in audio] == [0, 1]
+    assert [a["sentence"] for a in audio] == ["One.", "Two."]
+    assert _b64.b64decode(audio[0]["audio"]) == b"One."
+
+
+def test_converse_events_skips_failed_synth_but_keeps_text():
+    async def synth(sentence):
+        return None if sentence == "Bad." else sentence.encode()
+
+    out = collect(lambda: converse_events(_aiter(["Good.", " Bad.", " Fine."]), synth))
+    audio = [e for e in out if e["type"] == "audio"]
+    # Failed sentence has no audio event; indices stay contiguous.
+    assert [a["sentence"] for a in audio] == ["Good.", "Fine."]
+    assert [a["index"] for a in audio] == [0, 1]
+    # done.text retains the full reply, including the un-synthesized sentence.
+    assert out[-1]["text"] == "Good. Bad. Fine."
