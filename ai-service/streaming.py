@@ -5,6 +5,7 @@ No model imports here so this module stays cheap to import in unit tests
 """
 
 import base64
+import json
 from collections.abc import AsyncIterator, Awaitable, Callable
 
 _BOUNDARY_CHARS = ".!?"
@@ -81,3 +82,21 @@ async def converse_events(
                 }
                 index += 1
     yield {"type": "done", "text": " ".join(sentences).strip()}
+
+
+def parse_deepseek_delta(line: str) -> str | None:
+    """Extract the content delta from one DeepSeek SSE line, or None.
+
+    Handles the `data: {json}` framing, the terminal `data: [DONE]`, blank
+    keep-alive / comment lines, role-only deltas, and malformed JSON.
+    """
+    if not line.startswith("data:"):
+        return None
+    data = line[len("data:"):].strip()
+    if not data or data == "[DONE]":
+        return None
+    try:
+        chunk = json.loads(data)
+        return chunk["choices"][0]["delta"].get("content")
+    except (json.JSONDecodeError, KeyError, IndexError, TypeError):
+        return None

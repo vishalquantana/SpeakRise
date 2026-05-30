@@ -90,3 +90,29 @@ def test_converse_events_skips_failed_synth_but_keeps_text():
     assert [a["index"] for a in audio] == [0, 1]
     # done.text retains the full reply, including the un-synthesized sentence.
     assert out[-1]["text"] == "Good. Bad. Fine."
+
+
+from streaming import parse_deepseek_delta
+
+
+def test_parse_deepseek_delta_extracts_content():
+    line = 'data: {"choices":[{"delta":{"content":"Hi"}}]}'
+    assert parse_deepseek_delta(line) == "Hi"
+
+
+def test_parse_deepseek_delta_done_sentinel():
+    assert parse_deepseek_delta("data: [DONE]") is None
+
+
+def test_parse_deepseek_delta_blank_and_comment_lines():
+    assert parse_deepseek_delta("") is None
+    assert parse_deepseek_delta(": keep-alive") is None
+
+
+def test_parse_deepseek_delta_role_only_delta_has_no_content():
+    line = 'data: {"choices":[{"delta":{"role":"assistant"}}]}'
+    assert parse_deepseek_delta(line) is None
+
+
+def test_parse_deepseek_delta_malformed_json():
+    assert parse_deepseek_delta("data: {not json") is None
