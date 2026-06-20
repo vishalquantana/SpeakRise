@@ -31,6 +31,82 @@ export async function getEmployeeWorkEntries(orgId: string, userId: string) {
   return res.rows;
 }
 
+export interface EmployeeProgress {
+  /** Headline skill plotted over time, ordered oldest -> newest. */
+  skill: string;
+  series: { score: number; created_at: string }[];
+  /** Most-discussed topics across this user's assessments, most frequent first. */
+  topics: { topic: string; count: number }[];
+}
+
+/**
+ * Returns a progress-over-time view for one employee:
+ *  - a time series of a single headline skill (default "fluency") from
+ *    skill_history, ordered chronologically so a sparkline trends left->right
+ *  - the user's most-discussed topics, aggregated across their work entries
+ *
+ * Degrades gracefully: an employee with no skill_history yields an empty
+ * series (the caller renders an empty state rather than crashing).
+ */
+export async function getEmployeeProgress(
+  orgId: string,
+  userId: string,
+  headlineSkill = "fluency"
+): Promise<EmployeeProgress> {
+  // Guard the user actually belongs to this org before exposing their history.
+  const member = await db.execute({
+    sql: `SELECT 1 FROM org_members WHERE org_id = ? AND user_id = ? AND joined_at IS NOT NULL LIMIT 1`,
+    args: [orgId, userId],
+  });
+  if (member.rows.length === 0) {
+    return { skill: headlineSkill, series: [], topics: [] };
+  }
+
+  const history = await db.execute({
+    sql: `SELECT score, created_at
+          FROM skill_history
+          WHERE user_id = ? AND skill = ?
+          ORDER BY created_at ASC`,
+    args: [userId, headlineSkill],
+  });
+
+  const series = history.rows.map((r) => ({
+    score: Number(r.score),
+    created_at: r.created_at as string,
+  }));
+
+  // Aggregate topics across all of this user's work entries (topics_json is a
+  // JSON string[] per CONTRACT). Counted in JS since they're packed per row.
+  const topicRows = await db.execute({
+    sql: `SELECT topics_json FROM work_entries WHERE user_id = ?`,
+    args: [userId],
+  });
+
+  const counts = new Map<string, number>();
+  for (const row of topicRows.rows) {
+    let topics: unknown;
+    try {
+      topics = JSON.parse((row.topics_json as string) || "[]");
+    } catch {
+      continue;
+    }
+    if (!Array.isArray(topics)) continue;
+    for (const t of topics) {
+      if (typeof t !== "string") continue;
+      const topic = t.trim();
+      if (!topic) continue;
+      counts.set(topic, (counts.get(topic) || 0) + 1);
+    }
+  }
+
+  const topics = Array.from(counts.entries())
+    .map(([topic, count]) => ({ topic, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 6);
+
+  return { skill: headlineSkill, series, topics };
+}
+
 export async function getOrgInsights(orgId: string) {
   const sentiment = await db.execute({
     sql: `SELECT w.sentiment, COUNT(*) AS c

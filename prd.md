@@ -1,95 +1,204 @@
-1. Product Overview
-Speakeasy is an AI-powered daily English communication and coaching app designed to help professionals level up their speaking skills. Through practical, daily 5-minute conversations and real-time corrections, users progress from basic comprehension to inspiring, expert-level communication.
+# SpeakRise - Product Requirements Document
 
-Core Philosophy: * "Be a Crab": Shed your old shell and grow.
+## 1. Product Overview
 
-Individual vs. Quantana: Moving from individuals doing one task to scaling an AI brand with a "Design First Process" to millions.
+SpeakRise is an AI-powered English conversation practice platform that helps users improve their speaking skills through daily 5-minute voice sessions with real-time AI feedback. Users progress through 5 proficiency levels — from basic comprehension to expert-level communication — via natural conversations, personalized assessments, and targeted exercises.
 
-2. Target Audience & Business Model
-B2C (Individuals):
+**Core Philosophy:** "Be a Crab" — shed your old shell and grow. Small daily practice compounds into transformative communication skills.
 
-Free Tier: 1 daily 5-minute lesson.
+**Product URL:** https://speakrise.quantana.top
 
-Premium Tier: Multiple lessons per day.
+---
 
-Pro Tier (Accent/Voice): Advanced enunciation, voice modulation, gravitas, and leadership training.
+## 2. Target Audience & Business Model
 
-B2B (Corporates):
+### B2C (Individuals)
+- **Free Tier:** 1 daily 5-minute conversation session
+- **Premium Tier:** Multiple sessions per day, advanced analytics
+- **Pro Tier:** Accent coaching, voice modulation, gravitas training, leadership communication
 
-Value Proposition ("2 Birds, One Stone"): Employees improve their communication skills while the company gains macro-insights into organizational activity and morale.
+### B2B (Corporates)
+- **Value Proposition:** Employees improve communication skills while the company gains macro-insights into organizational communication health and morale
+- **Features:** Team dashboards, leaderboards, nudges, aggregate analytics
 
-3. Core User Journey
-Phase 1: Onboarding & Baseline
-Users complete a 5-minute baseline conversation to establish their starting level, define their role, set expected skills, and generate a personalized roadmap.
+---
 
-Baseline Prompts:
+## 3. User Flows
 
-Tell me about yourself.
+### 3.1 Onboarding & Baseline Assessment
+1. User visits app, enters email on login page
+2. Receives 6-digit OTP via email (SendGrid), verifies identity
+3. Redirected to baseline assessment — a 5-minute AI conversation
+4. AI greets user warmly, asks them to introduce themselves
+5. AI evaluates grammar, vocabulary, fluency, clarity, sentence structure
+6. Starting level assigned (1-5), personalized roadmap generated
+7. User lands on dashboard with their level and skill breakdown
 
-What do you do?
+### 3.2 The Daily Practice Loop
+1. User opens dashboard, sees current level and skill scores
+2. Clicks "Start Today's Session"
+3. AI initiates conversation with an engaging question (AI speaks first)
+4. Voice Activity Detection auto-captures speech — zero manual button presses
+5. Real-time pipeline: Speech-to-Text → LLM response → Text-to-Speech playback
+6. Session runs for ~5 minutes (timer visible)
+7. Session ends → AI assessment runs automatically
 
-What do you want to do?
+### 3.3 Post-Session Report
+After each session, users see:
+- **Overall level achieved** (1-5 scale)
+- **What went well** — 2-3 positive observations
+- **Areas to improve** — 2-3 actionable suggestions
+- **Skill breakdown** — Progress bars for each evaluated skill
+- **Practice exercises** — "Repeat after me" (corrected sentences), vocabulary definitions with examples
+- **Full transcript** — Complete conversation for review
 
-Phase 2: The Daily Loop
-Daily Prompt/UI: User opens the app and initiates their daily session.
+### 3.4 History & Progress Tracking
+- View all past sessions with date, type, duration, and level
+- Click any session to see its full report
+- Dashboard shows cumulative skill progress over time
 
-5-Minute Conversation: Real-time voice chat with the AI using STT (Speech-to-Text), LLM (Large Language Model), and TTS (Text-to-Speech).
+---
 
-Post-Chat Report UI:
+## 4. The 5-Level Proficiency System
 
-What Went Well / What Can Be Improved: High-level feedback.
+| Level | Name | Description | Focus Areas |
+|-------|------|-------------|-------------|
+| 1 | **Learning** | Understanding words and sentences | Vocabulary acquisition, basic grammar |
+| 2 | **Speaking** | Using words to speak basic facts | Grammar accuracy, sentence construction |
+| 3 | **Communicating** | Conveying complex ideas clearly | Sentence variety, fluency, clarity |
+| 4 | **Persuading** | Convincing through logic and emotion | Rhetoric, word choice, argumentation |
+| 5 | **Inspiring** | Expert-level communication | Narrative, delivery, gravitas |
 
-Strengthening: Targeted exercises like "Repeat After Me" (e.g., Repeat once until right -> Key sentences). Includes Vocabulary (e.g., "Inference means..."), Sentence Structure, and Analogies.
+---
 
-Progress Tracking: Visual progress bars showing mastery percentages for different skill levels (e.g., L1 -> 98%, L2 -> 50%).
+## 5. Assessment & Feedback Engine
 
-4. The Grading System (The 5 Levels)
-The product features a structured progression roadmap:
+### Foundation Skills (All Levels)
+| Skill | Measurement |
+|-------|-------------|
+| Grammar | Correctness of sentence structure (0-100) |
+| Vocabulary | Range and appropriateness of word choice (0-100) |
+| Sentence Length | Complexity and depth of expression (0-100) |
+| Sentence Variety | Mix of simple, compound, complex sentences (0-100) |
+| Fluency | Smoothness and natural flow (0-100) |
+| Clarity | How clearly ideas are communicated (0-100) |
 
-Level 1: Learning – Understanding words and sentences. (Next step: Learn vocabulary)
+### Advanced Skills (Level 3+)
+| Skill | Measurement |
+|-------|-------------|
+| Rhetoric | Use of ethos, pathos, logos (0-100) |
+| Narrative | Storytelling, analogies, humor, insights (0-100) |
+| Delivery | Pacing, hooks, curiosity, persuasion techniques (0-100) |
 
-Level 2: Speaking – Using words to speak basic facts. (Next step: Improve grammar)
+### Exercise Types
+- **Repeat After Me:** Corrected versions of user's actual sentences — practice until correct
+- **Vocabulary:** New words with definitions, example sentences, and usage context
 
-Level 3: Communicating – Conveying complex ideas. (Next step: Improve sentence length)
+---
 
-Level 4: Persuading – Convincing locally/logically. (Next step: Improve word choice)
+## 6. Technical Architecture
 
-Level 5: Inspiring – Making the client believe you are an expert.
+### Stack
+| Layer | Technology | Purpose |
+|-------|-----------|---------|
+| Frontend | Next.js 16, React 19, TypeScript, Tailwind CSS | Web UI, API proxy routes |
+| AI Service | FastAPI (Python) | STT, LLM, TTS orchestration |
+| Speech-to-Text | Faster-Whisper (small model, int8) | Audio transcription |
+| LLM | DeepSeek v4-flash | Conversation and assessment grading |
+| Text-to-Speech | Kokoro ONNX (local) | Voice synthesis, streaming SSE |
+| Database | Turso (LibSQL) | Users, sessions, messages, assessments, progress |
+| Auth | iron-session (encrypted cookies) | Passwordless OTP, 30-day sessions |
+| Email | SendGrid | OTP delivery |
+| Deployment | Nginx + systemd on VPS | Self-hosted, Let's Encrypt SSL |
 
-5. Feedback & Improvement Engine
-The AI evaluates and provides feedback on specific vectors based on the user's level:
+### Data Model (6 Tables)
+- **users** — id, email, name, current_level, onboarding_complete, created_at
+- **otp_codes** — id, email, code, expires_at, used
+- **sessions** — id, user_id, started_at, ended_at, duration_seconds, session_type
+- **messages** — id, session_id, role, content, audio_duration_ms, created_at
+- **assessments** — id, session_id, user_id, overall_level, feedback_json, created_at
+- **progress** — id, user_id, skill, score, level, updated_at (unique per user+skill)
 
-L1 Core Skills (Foundation):
+### Voice Pipeline (Real-Time)
+```
+User speaks → Mic (WebM/Opus)
+  → VAD detects speech end (1.5s silence)
+  → Whisper transcription
+  → DeepSeek LLM generates response
+  → Kokoro TTS streams audio (SSE, sentence-by-sentence)
+  → Web Audio API playback
+  → VAD resumes listening
+```
 
-Grammar & Vocabulary
+### Voice Activity Detection
+- Web Audio API AnalyserNode with RMS energy analysis
+- Adaptive noise floor calibration (30 samples at session start)
+- Speech threshold: noise_floor × 3.0
+- Silence duration: 1500ms before stopping recording
+- Minimum speech duration: 400ms to filter noise spikes
+- Zero-button interaction — fully automatic
 
-Sentence Length & Variety
+---
 
-Pausing for Breaks
+## 7. Pages & Routes
 
-Words Per Minute (finding the optimum speed)
+| Route | Auth | Purpose |
+|-------|------|---------|
+| `/login` | Public | Email + OTP login, test mode support |
+| `/` | — | Smart redirect based on auth/onboarding state |
+| `/onboarding` | Required | Baseline assessment conversation |
+| `/dashboard` | Required | Level, skills, recent sessions, start session CTA |
+| `/session` | Required | Daily conversation practice |
+| `/report/[id]` | Required | Post-session feedback and assessment |
+| `/history` | Required | All past sessions list |
 
-Voice Clarity & Volume
+---
 
-L2 & Pro Skills (Advanced):
+## 8. Future Roadmap
 
-Rhetoric Framework: Ethos (Emotion), Pathos (Authority), Logos (Logical Arguments).
+### Phase 2 — Engagement & Retention
+- Daily streak badges and visual rewards
+- Push notification reminders
+- Spaced repetition for weak skills
+- Multiple AI personalities/coaching styles
 
-Narrative: Storytelling, Simple Narratives, Humor, Insights, Analogies.
+### Phase 3 — Social & Teams (B2B)
+- Team dashboards with aggregate analytics
+- Nudge system (remind teammates to practice)
+- Leaderboards (best team, most consistent)
+- Manager insights into team communication health
 
-Delivery: Pacing, Curiosity/Hooks, Setup to Delivery ("Aha" moments), Mystery, Gravitas, Voice Modulation.
+### Phase 4 — Advanced Features
+- Speaking rate analysis (words per minute)
+- Pause and prosody detection
+- Accent coaching and voice modulation training
+- Industry-specific conversation scenarios (sales, interviews, presentations)
+- Mobile app (React Native / Flutter)
 
-Objection Handling: Object Preempting and Object Blocking.
-(Note: Standard definitions usually flip Ethos (Authority) and Pathos (Emotion), but the system can be trained to your specific framework).
+### Phase 5 — Scale
+- Multi-language support (Hindi, Spanish, etc.)
+- Horizontal scaling of AI service
+- Custom enterprise deployments (on-premise option)
 
-6. Gamification & Social Features
-Daily Badges: Visual rewards for completing the daily 5-minute chat.
+---
 
-Team Nudges: Visibility into who has completed their daily lesson and who hasn't. Users can "nudge" teammates to complete their tasks.
+## 9. Deployment & Infrastructure
 
-Leaderboards: Recognizing the "Best Team" and "Most Consistent Team".
+- **VPS:** Vultr Mumbai (1GB RAM + swap)
+- **Domain:** speakrise.quantana.top
+- **SSL:** Let's Encrypt via Certbot
+- **Process management:** systemd (speakrise-web, speakrise-ai)
+- **Reverse proxy:** Nginx
+- **AI models:** Local Whisper + Kokoro on VPS, DeepSeek via API
 
-7. Technical Considerations
-AI Stack: LLM, Voice generation (TTS), and Speech recognition (STT).
+---
 
-Deployment: Investigation needed on whether the stack can run locally for specific clients ("Can all this run locally for Ace?").
+## 10. Key Design Decisions
+
+1. **AI speaks first** — Reduces user anxiety, sets conversational tone, provides clear affordance
+2. **Zero-button voice interaction** — VAD handles start/stop automatically, mimicking natural conversation
+3. **Streaming TTS** — Sentence-by-sentence synthesis via SSE for low perceived latency
+4. **Local TTS (Kokoro)** — Privacy-first, no external API dependency for voice synthesis
+5. **Passwordless auth** — Email OTP reduces friction, no passwords to remember
+6. **5-minute sessions** — Low commitment drives daily habit formation
+7. **Dark theme** — Reduces eye strain, modern aesthetic for daily-use app

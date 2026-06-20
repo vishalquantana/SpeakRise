@@ -69,7 +69,7 @@ export default function SessionPage() {
       sessionId={sessionId}
       onSessionEnd={handleSessionEnd}
       duration={duration}
-      initialPrompt={scenario?.openingMessage}
+      openingLine={scenario?.openingMessage}
       systemPromptAddition={scenario?.systemPromptAddition}
     />
   );

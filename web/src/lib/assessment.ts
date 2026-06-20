@@ -1,9 +1,10 @@
 import { db } from "./db";
 import { v4 as uuid } from "uuid";
 import { awardPoints } from "./gamification";
-import { parseAssessmentResponse } from "./assessment-core";
+import { parseAssessmentResponse, buildFallbackAssessment } from "./assessment-core";
 
 const AI_URL = process.env.AI_SERVICE_URL || "http://localhost:8770";
+const GRADING_TIMEOUT_MS = Number(process.env.GRADING_TIMEOUT_MS) || 30000;
 
 function buildGradingPrompt(userLevel: number): string {
   const baseSkills = `
@@ -26,7 +27,8 @@ Return ONLY valid JSON (no markdown, no code fences) with this exact structure:
   "exercises": [
     {"type": "repeat_after_me", "sentence": "<corrected/improved version of something they said>", "explanation": "<why this is better>"},
     {"type": "vocabulary", "word": "<word they could have used>", "definition": "<meaning>", "example": "<example sentence>"}
-  ]
+  ],
+  "topics": ["<short phrase for each subject the user actually talked about, e.g. 'weekend plans', 'cooking'>"]
 }`;
 
   const advancedSkills = userLevel >= 3 ? `
@@ -72,18 +74,37 @@ export async function assessSession(
 
   const gradingPrompt = buildGradingPrompt(userLevel);
 
-  const res = await fetch(`${AI_URL}/chat`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      text: `Here is the conversation transcript to assess:\n\n${transcript}`,
-      session_id: `assess-${sessionId}`,
-      system_prompt: gradingPrompt,
-    }),
-  });
+  // Grade with a hard timeout and graceful fallback: a slow, unreachable, or
+  // malformed grade must still resolve to a valid assessment, never a crash.
+  let parsed = buildFallbackAssessment(userLevel);
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), GRADING_TIMEOUT_MS);
+    try {
+      const res = await fetch(`${AI_URL}/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          text: `Here is the conversation transcript to assess:\n\n${transcript}`,
+          session_id: `assess-${sessionId}`,
+          system_prompt: gradingPrompt,
+        }),
+        signal: controller.signal,
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (typeof data?.text === "string" && data.text.trim().length > 0) {
+          parsed = parseAssessmentResponse(data.text, userLevel);
+        }
+      }
+    } finally {
+      clearTimeout(timer);
+    }
+  } catch {
+    // Network error, abort/timeout, or bad JSON: keep the valid fallback.
+    parsed = buildFallbackAssessment(userLevel);
+  }
 
-  const data = await res.json();
-  const parsed = parseAssessmentResponse(data.text, userLevel);
   const overallLevel = parsed.overallLevel;
   const feedbackJson = parsed.feedbackJson;
 
@@ -105,6 +126,13 @@ export async function assessSession(
             ON CONFLICT(user_id, skill) DO UPDATE SET score = ?, level = ?, updated_at = datetime('now')`,
       args: [uuid(), userId, skill, score as number, overallLevel, score as number, overallLevel],
     });
+
+    // Record one skill_history row per skill for progress sparklines.
+    await db.execute({
+      sql: `INSERT INTO skill_history (id, user_id, session_id, skill, score)
+            VALUES (?, ?, ?, ?, ?)`,
+      args: [uuid(), userId, sessionId, skill, score as number],
+    });
   }
 
   const points = await awardPoints(userId, sessionId, parsed.skills);
@@ -119,7 +147,7 @@ export async function assessSession(
         userId,
         sessionId,
         wn.worked_on || wn.highlights || "",
-        JSON.stringify([]),
+        JSON.stringify(parsed.topics),
         wn.blockers || null,
         wn.sentiment,
       ],

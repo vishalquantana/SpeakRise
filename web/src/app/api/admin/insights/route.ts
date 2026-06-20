@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import {
   getEmployeeInsights,
   getEmployeeWorkEntries,
+  getEmployeeProgress,
   getOrgInsights,
   generateWeeklyDigest,
 } from "@/lib/insights";
@@ -17,8 +18,11 @@ export async function GET(req: NextRequest) {
   const employeeId = req.nextUrl.searchParams.get("employeeId");
 
   if (employeeId) {
-    const entries = await getEmployeeWorkEntries(orgId, employeeId);
-    return NextResponse.json({ entries });
+    const [entries, progress] = await Promise.all([
+      getEmployeeWorkEntries(orgId, employeeId),
+      getEmployeeProgress(orgId, employeeId),
+    ]);
+    return NextResponse.json({ entries, progress });
   }
 
   const employees = await getEmployeeInsights(orgId);

@@ -98,6 +98,20 @@ export default async function DashboardPage() {
         </div>
       )}
 
+      {!completedToday && stats.currentStreak > 0 && (
+        <div className="mx-6 mt-4 p-4 bg-[var(--gold)]/10 border border-[var(--gold)] rounded-xl flex items-center justify-between gap-3">
+          <div>
+            <p className="text-xs uppercase tracking-wide text-[var(--gold)] font-semibold">
+              Streak saver
+            </p>
+            <p className="text-sm text-[var(--foreground)] mt-1">
+              Keep your {stats.currentStreak}-day streak alive — finish today's challenge before midnight.
+            </p>
+          </div>
+          <span className="text-2xl font-bold text-[var(--gold)] shrink-0">{stats.currentStreak}d</span>
+        </div>
+      )}
+
       <div className="mx-6 mt-4">
         {completedToday ? (
           <div className="p-4 bg-[var(--success-light)] border border-[var(--success)] rounded-xl text-center">
@@ -108,7 +122,12 @@ export default async function DashboardPage() {
           </div>
         ) : (
           <div className="p-4 bg-white rounded-2xl border border-[var(--card-border)] shadow-sm">
-            <p className="text-xs uppercase tracking-wide text-[var(--muted)]">Recommended for you</p>
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-xs uppercase tracking-wide text-[var(--muted)]">Today's Challenge</p>
+              <span className="px-2 py-0.5 rounded-full bg-[var(--gold)]/15 text-[var(--gold)] text-[11px] font-bold uppercase tracking-wide">
+                +20 bonus XP
+              </span>
+            </div>
             <p className="text-lg font-semibold text-[var(--foreground)] mt-1">{recommended?.topic}</p>
             {weakestSkill && (
               <p className="text-sm text-[var(--muted)] mt-0.5">
@@ -119,7 +138,7 @@ export default async function DashboardPage() {
               href={recommended ? `/session?lesson=${recommended.id}` : "/session"}
               className="block w-full mt-3 py-3 bg-[var(--accent)] hover:bg-[#B5502F] rounded-xl text-center font-semibold text-white transition"
             >
-              Start recommended session
+              Take today's challenge
             </Link>
             <Link
               href="/session"

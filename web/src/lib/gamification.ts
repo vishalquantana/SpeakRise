@@ -76,12 +76,16 @@ export async function awardPoints(userId: string, sessionId: string, skills: Rec
     args: [uuid(), userId, sessionId, participation, quality, streakBonus, total],
   });
 
-  await checkAndAwardBadges(userId, streak);
+  await checkAndAwardBadges(userId, streak, skills);
 
   return { participation, quality, streakBonus, total };
 }
 
-async function checkAndAwardBadges(userId: string, currentStreak: number): Promise<void> {
+async function checkAndAwardBadges(
+  userId: string,
+  currentStreak: number,
+  skills: Record<string, number>
+): Promise<void> {
   const countResult = await db.execute({
     sql: "SELECT COUNT(*) as c FROM points WHERE user_id = ?",
     args: [userId],
@@ -94,6 +98,19 @@ async function checkAndAwardBadges(userId: string, currentStreak: number): Promi
   if (currentStreak >= 7) badges.push("streak_7");
   if (currentStreak >= 30) badges.push("streak_30");
   if (currentStreak >= 90) badges.push("streak_90");
+
+  // perfect_score: any assessed skill hit 100 this session
+  const skillScores = Object.values(skills);
+  if (skillScores.some((s) => s >= 100)) badges.push("perfect_score");
+
+  // level_up: the assessment flow has already advanced current_level past
+  // the starting level (1) by the time points are awarded.
+  const levelResult = await db.execute({
+    sql: "SELECT current_level FROM users WHERE id = ?",
+    args: [userId],
+  });
+  const currentLevel = (levelResult.rows[0]?.current_level as number) || 1;
+  if (currentLevel >= 2) badges.push("level_up");
 
   for (const badge of badges) {
     await db.execute({

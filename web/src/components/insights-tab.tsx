@@ -2,10 +2,60 @@
 
 import { useEffect, useState } from "react";
 
+function Sparkline({ series }: { series: { score: number }[] }) {
+  const w = 120;
+  const h = 32;
+  const pad = 3;
+  const scores = series.map((p) => p.score);
+  const n = scores.length;
+
+  // A single point can't draw a line; render a dot so it's still visible.
+  if (n === 1) {
+    return (
+      <svg width={w} height={h} className="overflow-visible">
+        <circle cx={w / 2} cy={h / 2} r={3} fill="var(--accent)" />
+      </svg>
+    );
+  }
+
+  const min = Math.min(...scores);
+  const max = Math.max(...scores);
+  const range = max - min || 1;
+  const stepX = (w - pad * 2) / (n - 1);
+
+  const points = scores
+    .map((s, i) => {
+      const x = pad + i * stepX;
+      const y = pad + (h - pad * 2) * (1 - (s - min) / range);
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    })
+    .join(" ");
+
+  const trendingUp = scores[n - 1] >= scores[0];
+  const stroke = trendingUp ? "var(--success)" : "var(--gold)";
+  const lastX = pad + (n - 1) * stepX;
+  const lastY = pad + (h - pad * 2) * (1 - (scores[n - 1] - min) / range);
+
+  return (
+    <svg width={w} height={h} className="overflow-visible">
+      <polyline
+        points={points}
+        fill="none"
+        stroke={stroke}
+        strokeWidth={2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <circle cx={lastX} cy={lastY} r={2.5} fill={stroke} />
+    </svg>
+  );
+}
+
 export default function InsightsTab() {
   const [data, setData] = useState<any>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [entries, setEntries] = useState<Record<string, any[]>>({});
+  const [progress, setProgress] = useState<Record<string, any>>({});
   const [digest, setDigest] = useState<string | null>(null);
   const [genLoading, setGenLoading] = useState(false);
 
@@ -33,6 +83,7 @@ export default function InsightsTab() {
     if (!entries[id]) {
       const r = await fetch(`/api/admin/insights?employeeId=${id}`).then((x) => x.json());
       setEntries((prev) => ({ ...prev, [id]: r.entries }));
+      setProgress((prev) => ({ ...prev, [id]: r.progress || null }));
     }
   }
 
@@ -110,7 +161,55 @@ export default function InsightsTab() {
                 <span className="text-xs text-[var(--muted)]">{e.entry_count} notes</span>
               </button>
               {expanded === e.id && (
-                <div className="px-4 pb-3 space-y-2">
+                <div className="px-4 pb-3 space-y-3">
+                  {(() => {
+                    const p = progress[e.id];
+                    const series = (p && p.series) || [];
+                    const topics = (p && p.topics) || [];
+                    const skillLabel = p?.skill
+                      ? p.skill.charAt(0).toUpperCase() + p.skill.slice(1)
+                      : "Fluency";
+                    return (
+                      <div className="rounded-lg bg-[var(--background)] border border-[var(--card-border)] p-3">
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <p className="text-xs font-medium text-[var(--foreground)]">
+                              {skillLabel} over time
+                            </p>
+                            {series.length > 0 && (
+                              <p className="text-[11px] text-[var(--muted)] mt-0.5">
+                                {series.length} session{series.length === 1 ? "" : "s"} · latest{" "}
+                                {series[series.length - 1].score}/100
+                              </p>
+                            )}
+                          </div>
+                          {series.length > 0 ? (
+                            <Sparkline series={series} />
+                          ) : (
+                            <span className="text-[11px] text-[var(--muted)] italic">
+                              No sessions yet
+                            </span>
+                          )}
+                        </div>
+                        {topics.length > 0 && (
+                          <div className="mt-2.5">
+                            <p className="text-[11px] text-[var(--muted)] mb-1">Most discussed</p>
+                            <div className="flex flex-wrap gap-1.5">
+                              {topics.map((t: any, i: number) => (
+                                <span
+                                  key={i}
+                                  className="text-[11px] px-2 py-0.5 rounded-full bg-[var(--accent)]/10 text-[var(--accent)]"
+                                >
+                                  {t.topic}
+                                  {t.count > 1 ? ` ·${t.count}` : ""}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
                   {(entries[e.id] || []).length === 0 ? (
                     <p className="text-xs text-[var(--muted)]">No work notes yet.</p>
                   ) : (

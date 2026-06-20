@@ -15,6 +15,7 @@ from fastapi import FastAPI, UploadFile, File
 from fastapi.responses import HTMLResponse, Response, StreamingResponse
 from faster_whisper import WhisperModel
 from kokoro_onnx import Kokoro
+from streaming import converse_events, parse_deepseek_delta
 
 load_dotenv()
 
@@ -40,6 +41,9 @@ tts_executor = ThreadPoolExecutor(max_workers=4)
 
 # Conversation history (in-memory)
 conversations: dict[str, list[dict]] = {}
+
+# Emoji-free spoken fallback when the LLM/STT/TTS path hiccups, so the demo UI keeps flowing.
+FALLBACK_REPLY = "Sorry, I didn't quite catch that — could you say it once more?"
 
 SYSTEM_PROMPT = """You are a friendly English conversation partner helping someone practice and improve their English speaking skills.
 
@@ -89,6 +93,10 @@ async def transcribe(audio: UploadFile = File(...)):
         segments, info = whisper_model.transcribe(tmp_path, beam_size=5, language="en")
         text = " ".join(seg.text for seg in segments).strip()
         return {"text": text, "language": info.language}
+    except Exception as e:
+        # Never 500 on a transcription hiccup — return empty text so the UI keeps flowing.
+        print(f"Transcription error: {e}")
+        return {"text": "", "language": "en"}
     finally:
         os.unlink(tmp_path)
 
@@ -110,14 +118,21 @@ async def chat(request: dict):
     conversations[session_id].append({"role": "user", "content": user_text})
     messages = [{"role": "system", "content": system_prompt}] + conversations[session_id][-20:]
 
-    async with httpx.AsyncClient(timeout=60.0) as client:
-        resp = await client.post(
-            "https://api.deepseek.com/chat/completions",
-            headers={"Authorization": f"Bearer {DEEPSEEK_API_KEY}"},
-            json={"model": "deepseek-v4-flash", "messages": messages, "stream": False},
-        )
-        data = resp.json()
-        assistant_text = data["choices"][0]["message"]["content"]
+    try:
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            resp = await client.post(
+                "https://api.deepseek.com/chat/completions",
+                headers={"Authorization": f"Bearer {DEEPSEEK_API_KEY}"},
+                json={"model": "deepseek-v4-flash", "messages": messages, "stream": False},
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            assistant_text = data["choices"][0]["message"]["content"]
+    except Exception as e:
+        # Any LLM hiccup (timeout, bad payload, API error) must not 500 the demo UI.
+        # Return a safe, emoji-free spoken fallback with HTTP 200 so the loop keeps going.
+        print(f"Chat/DeepSeek error: {e}")
+        assistant_text = FALLBACK_REPLY
 
     conversations[session_id].append({"role": "assistant", "content": assistant_text})
     return {"text": assistant_text}
@@ -129,12 +144,16 @@ async def speak(request: dict):
     voice = request.get("voice", "af_sarah")
     speed = request.get("speed", 1.0)
 
-    samples, sample_rate = kokoro.create(text, voice=voice, speed=speed, lang="en-us")
-
-    buf = io.BytesIO()
-    sf.write(buf, samples, sample_rate, format="WAV")
-    buf.seek(0)
-    return Response(content=buf.read(), media_type="audio/wav")
+    try:
+        samples, sample_rate = kokoro.create(text, voice=voice, speed=speed, lang="en-us")
+        buf = io.BytesIO()
+        sf.write(buf, samples, sample_rate, format="WAV")
+        buf.seek(0)
+        return Response(content=buf.read(), media_type="audio/wav")
+    except Exception as e:
+        # TTS hiccup: return empty 200 audio rather than a 500 so the UI keeps flowing.
+        print(f"TTS /speak error for '{text[:50]}...': {e}")
+        return Response(content=b"", media_type="audio/wav")
 
 
 @app.post("/speak-stream")
@@ -162,24 +181,32 @@ async def speak_stream(request: dict):
     ]
 
     async def event_generator():
-        # Yield each sentence's audio in order, skipping failed ones
-        successful = 0
-        results = []
-        for i, future in enumerate(futures):
-            wav_bytes = await future
-            if wav_bytes is not None:
-                results.append((i, wav_bytes))
-        total = len(results)
-        for idx, (i, wav_bytes) in enumerate(results):
-            b64 = base64.b64encode(wav_bytes).decode("ascii")
-            data = json.dumps({
-                "index": idx,
-                "total": total,
-                "sentence": sentences[i],
-                "audio": b64,
-            })
-            yield f"data: {data}\n\n"
-        yield "data: [DONE]\n\n"
+        # Yield each sentence's audio in order, skipping failed ones.
+        # Any unexpected error still ends with a clean [DONE] so the client never hangs.
+        try:
+            results = []
+            for i, future in enumerate(futures):
+                try:
+                    wav_bytes = await future
+                except Exception as e:
+                    print(f"TTS stream synthesis error for sentence {i}: {e}")
+                    wav_bytes = None
+                if wav_bytes is not None:
+                    results.append((i, wav_bytes))
+            total = len(results)
+            for idx, (i, wav_bytes) in enumerate(results):
+                b64 = base64.b64encode(wav_bytes).decode("ascii")
+                data = json.dumps({
+                    "index": idx,
+                    "total": total,
+                    "sentence": sentences[i],
+                    "audio": b64,
+                })
+                yield f"data: {data}\n\n"
+        except Exception as e:
+            print(f"TTS /speak-stream error: {e}")
+        finally:
+            yield "data: [DONE]\n\n"
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 

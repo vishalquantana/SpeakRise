@@ -5,12 +5,15 @@ import { usePathname } from "next/navigation";
 
 const employeeLinks = [
   { href: "/dashboard", label: "Home" },
+  { href: "/leaderboard", label: "Ranks" },
+  { href: "/levels", label: "Levels" },
   { href: "/history", label: "History" },
 ];
 
 const adminLinks = [
   { href: "/dashboard", label: "Home" },
   { href: "/admin", label: "Admin" },
+  { href: "/leaderboard", label: "Ranks" },
   { href: "/history", label: "History" },
 ];
 
